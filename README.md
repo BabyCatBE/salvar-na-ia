@@ -74,12 +74,12 @@ O Salvar na IA enviará a URL ao pacote `com.deniscerri.ytdl` usando:
 O YTDLnis deverá ter um **Command Template dedicado chamado "Salvar na IA"**, marcado como preferido para command downloads.
 
 Configuração planejada desse perfil:
-- pasta dedicada: `Download/Videos IA`;
+- pasta dedicada: `Download_Videos IA`;
 - vídeo completo;
 - áudio mantido;
-- resolução máxima de 720p;
-- sem upscale;
-- saída MP4 sempre que possível sem recodificação desnecessária;
+- qualidade automática: melhor formato disponível escolhido pelo yt-dlp;
+- sem limite fixo de resolução;
+- saída MP4 usando o preset oficial do yt-dlp;
 - download em segundo plano.
 
 O YTDLnis atual não permite mais injetar o conteúdo arbitrário do comando pelo Intent. Por isso, o template será configurado uma única vez dentro do YTDLnis e o nosso app apenas selecionará o tipo `command`.
