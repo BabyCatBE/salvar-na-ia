@@ -1,257 +1,535 @@
 package com.babycatbe.salvarnaia;
 
-import android.animation.AnimatorSet;
-import android.animation.ObjectAnimator;
+import android.Manifest;
 import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.pm.PackageInfo;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
-import android.view.animation.DecelerateInterpolator;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.text.DateFormat;
 import java.util.Date;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
 
-    private static final int COLOR_BG = Color.rgb(249, 246, 244);
-    private static final int COLOR_SURFACE = Color.WHITE;
-    private static final int COLOR_TEXT = Color.rgb(38, 32, 31);
-    private static final int COLOR_MUTED = Color.rgb(116, 105, 102);
-    private static final int COLOR_RED = Color.rgb(183, 28, 28);
-    private static final int COLOR_RED_SOFT = Color.rgb(255, 238, 236);
-    private static final int COLOR_BORDER = Color.rgb(235, 226, 223);
-    private static final int COLOR_GREEN = Color.rgb(38, 126, 71);
+    private static final int REQUEST_FOLDER = 3001;
+    private static final int REQUEST_NOTIFICATIONS = 3002;
+    private static final long TRASH_RETENTION_MS = 7L * 24L * 60L * 60L * 1000L;
 
-    private LinearLayout content;
-    private TextView statusValue;
-    private TextView statusHint;
-    private TextView countValue;
-    private TextView urlValue;
-    private TextView receivedAtValue;
+    private static final int BG = Color.rgb(248, 246, 244);
+    private static final int SURFACE = Color.WHITE;
+    private static final int TEXT = Color.rgb(35, 31, 30);
+    private static final int MUTED = Color.rgb(112, 103, 100);
+    private static final int RED = Color.rgb(183, 28, 28);
+    private static final int RED_SOFT = Color.rgb(255, 237, 235);
+    private static final int BORDER = Color.rgb(232, 224, 221);
+    private static final int GREEN = Color.rgb(38, 126, 71);
+    private static final int GREEN_SOFT = Color.rgb(235, 247, 239);
+    private static final int AMBER = Color.rgb(151, 100, 12);
+    private static final int AMBER_SOFT = Color.rgb(255, 247, 224);
+
+    private final ExecutorService io = Executors.newSingleThreadExecutor();
+
+    private LinearLayout root;
+    private LinearLayout listContainer;
+    private TextView folderText;
+    private TextView pendingTab;
+    private TextView trashTab;
+    private boolean showingTrash = false;
+
+    private AppStore store;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        configureSystemBars();
+        store = new AppStore(this);
+        configureBars();
         buildUi();
-        animateEntrance();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        refreshStatus();
+        refresh();
+        purgeExpiredTrashAsync();
     }
 
-    private void configureSystemBars() {
+    private void configureBars() {
         Window window = getWindow();
-        window.setStatusBarColor(COLOR_BG);
-        window.setNavigationBarColor(COLOR_BG);
+        window.setStatusBarColor(BG);
+        window.setNavigationBarColor(BG);
         window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
     }
 
     private void buildUi() {
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
-        scroll.setBackgroundColor(COLOR_BG);
-        scroll.setClipToPadding(false);
+        scroll.setBackgroundColor(BG);
 
-        content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(20), dp(28), dp(20), dp(32));
-        scroll.addView(content, new ScrollView.LayoutParams(
+        root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(20), dp(28), dp(20), dp(36));
+        scroll.addView(root, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
         TextView eyebrow = text("SALVAR NA IA", 12, true);
-        eyebrow.setTextColor(COLOR_RED);
+        eyebrow.setTextColor(RED);
         eyebrow.setLetterSpacing(0.12f);
-        content.addView(eyebrow);
+        root.addView(eyebrow);
 
-        TextView title = text("Seus links, prontos para o próximo passo.", 29, true);
-        title.setTextColor(COLOR_TEXT);
-        title.setLineSpacing(0f, 1.05f);
-        LinearLayout.LayoutParams titleParams = matchWrap();
-        titleParams.topMargin = dp(8);
-        content.addView(title, titleParams);
+        TextView title = text("Vídeos prontos para análise.", 29, true);
+        title.setTextColor(TEXT);
+        LinearLayout.LayoutParams titleP = matchWrap();
+        titleP.topMargin = dp(8);
+        root.addView(title, titleP);
 
         TextView subtitle = text(
-                "Compartilhe pelo Instagram ou TikTok e continue usando o celular normalmente.",
+                "Compartilhe um vídeo. O YTDLnis baixa; o Salvar na IA organiza.",
                 15,
                 false
         );
-        subtitle.setTextColor(COLOR_MUTED);
+        subtitle.setTextColor(MUTED);
         subtitle.setLineSpacing(dp(2), 1f);
-        LinearLayout.LayoutParams subtitleParams = matchWrap();
-        subtitleParams.topMargin = dp(10);
-        subtitleParams.bottomMargin = dp(22);
-        content.addView(subtitle, subtitleParams);
+        LinearLayout.LayoutParams subP = matchWrap();
+        subP.topMargin = dp(8);
+        subP.bottomMargin = dp(18);
+        root.addView(subtitle, subP);
 
-        LinearLayout phaseRow = new LinearLayout(this);
-        phaseRow.setOrientation(LinearLayout.HORIZONTAL);
-        phaseRow.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout chips = new LinearLayout(this);
+        chips.setOrientation(LinearLayout.HORIZONTAL);
+        chips.addView(chip("v" + getVersionName(), RED_SOFT, RED));
+        TextView beta = chip("Beta integrada", Color.rgb(239, 238, 237), MUTED);
+        LinearLayout.LayoutParams betaP = wrapWrap();
+        betaP.leftMargin = dp(8);
+        chips.addView(beta, betaP);
+        LinearLayout.LayoutParams chipsP = matchWrap();
+        chipsP.bottomMargin = dp(18);
+        root.addView(chips, chipsP);
 
-        TextView versionChip = chip("v" + getVersionName(), COLOR_RED_SOFT, COLOR_RED);
-        phaseRow.addView(versionChip);
+        LinearLayout folderCard = card();
+        folderCard.addView(label("PASTA DOS VÍDEOS"));
+        folderText = text("", 16, true);
+        folderText.setTextColor(TEXT);
+        LinearLayout.LayoutParams folderTextP = matchWrap();
+        folderTextP.topMargin = dp(8);
+        folderCard.addView(folderText, folderTextP);
 
-        TextView phaseChip = chip("Fase 1 • Share Target", Color.rgb(241, 239, 238), COLOR_MUTED);
-        LinearLayout.LayoutParams phaseParams = wrapWrap();
-        phaseParams.leftMargin = dp(8);
-        phaseRow.addView(phaseChip, phaseParams);
-
-        LinearLayout.LayoutParams phaseRowParams = matchWrap();
-        phaseRowParams.bottomMargin = dp(18);
-        content.addView(phaseRow, phaseRowParams);
-
-        LinearLayout statusCard = card();
-        TextView statusLabel = label("STATUS");
-        statusCard.addView(statusLabel);
-
-        statusValue = text("", 19, true);
-        statusValue.setTextColor(COLOR_TEXT);
-        LinearLayout.LayoutParams statusValueParams = matchWrap();
-        statusValueParams.topMargin = dp(8);
-        statusCard.addView(statusValue, statusValueParams);
-
-        statusHint = text("", 14, false);
-        statusHint.setTextColor(COLOR_MUTED);
-        statusHint.setLineSpacing(dp(2), 1f);
-        LinearLayout.LayoutParams statusHintParams = matchWrap();
-        statusHintParams.topMargin = dp(6);
-        statusCard.addView(statusHint, statusHintParams);
-
-        content.addView(statusCard, cardParams(dp(0), dp(14)));
-
-        LinearLayout statsRow = new LinearLayout(this);
-        statsRow.setOrientation(LinearLayout.HORIZONTAL);
-        statsRow.setWeightSum(2f);
-
-        LinearLayout countCard = compactCard();
-        countCard.addView(label("RECEBIDOS"));
-        countValue = text("", 28, true);
-        countValue.setTextColor(COLOR_TEXT);
-        LinearLayout.LayoutParams countValueParams = matchWrap();
-        countValueParams.topMargin = dp(5);
-        countCard.addView(countValue, countValueParams);
-
-        LinearLayout.LayoutParams halfLeft = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        halfLeft.rightMargin = dp(7);
-        statsRow.addView(countCard, halfLeft);
-
-        LinearLayout timeCard = compactCard();
-        timeCard.addView(label("ÚLTIMO"));
-        receivedAtValue = text("", 15, true);
-        receivedAtValue.setTextColor(COLOR_TEXT);
-        receivedAtValue.setMaxLines(2);
-        LinearLayout.LayoutParams timeValueParams = matchWrap();
-        timeValueParams.topMargin = dp(8);
-        timeCard.addView(receivedAtValue, timeValueParams);
-
-        LinearLayout.LayoutParams halfRight = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        halfRight.leftMargin = dp(7);
-        statsRow.addView(timeCard, halfRight);
-
-        LinearLayout.LayoutParams statsParams = matchWrap();
-        statsParams.bottomMargin = dp(14);
-        content.addView(statsRow, statsParams);
-
-        LinearLayout linkCard = card();
-        linkCard.addView(label("ÚLTIMO LINK RECEBIDO"));
-
-        urlValue = text("", 16, false);
-        urlValue.setTextColor(COLOR_TEXT);
-        urlValue.setTextIsSelectable(true);
-        urlValue.setLineSpacing(dp(2), 1f);
-        LinearLayout.LayoutParams urlParams = matchWrap();
-        urlParams.topMargin = dp(10);
-        linkCard.addView(urlValue, urlParams);
-
-        TextView linkHint = text("Toque e segure para selecionar ou copiar.", 12, false);
-        linkHint.setTextColor(COLOR_MUTED);
-        LinearLayout.LayoutParams linkHintParams = matchWrap();
-        linkHintParams.topMargin = dp(10);
-        linkCard.addView(linkHint, linkHintParams);
-
-        content.addView(linkCard, cardParams(dp(0), dp(18)));
-
-        TextView nextTitle = text("Próximo passo", 16, true);
-        nextTitle.setTextColor(COLOR_TEXT);
-        content.addView(nextTitle);
-
-        TextView nextText = text(
-                "A Fase 1 já está validada. A próxima etapa será conectar o recebimento ao YTDLnis, mantendo o fluxo simples e local.",
-                14,
+        TextView folderHint = text(
+                "Conecte uma vez a mesma pasta usada pelo perfil Salvar na IA no YTDLnis.",
+                13,
                 false
         );
-        nextText.setTextColor(COLOR_MUTED);
-        nextText.setLineSpacing(dp(3), 1f);
-        LinearLayout.LayoutParams nextParams = matchWrap();
-        nextParams.topMargin = dp(6);
-        content.addView(nextText, nextParams);
+        folderHint.setTextColor(MUTED);
+        folderHint.setLineSpacing(dp(2), 1f);
+        LinearLayout.LayoutParams hintP = matchWrap();
+        hintP.topMargin = dp(6);
+        folderCard.addView(folderHint, hintP);
+
+        TextView connect = actionButton("Conectar / trocar pasta", false);
+        connect.setOnClickListener(v -> chooseFolder());
+        LinearLayout.LayoutParams connectP = matchWrap();
+        connectP.topMargin = dp(14);
+        folderCard.addView(connect, connectP);
+
+        LinearLayout.LayoutParams folderCardP = matchWrap();
+        folderCardP.bottomMargin = dp(16);
+        root.addView(folderCard, folderCardP);
+
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        tabs.setWeightSum(2f);
+
+        pendingTab = tab("Pendentes", true);
+        trashTab = tab("Lixeira", false);
+
+        LinearLayout.LayoutParams left = new LinearLayout.LayoutParams(0, dp(46), 1f);
+        left.rightMargin = dp(6);
+        tabs.addView(pendingTab, left);
+
+        LinearLayout.LayoutParams right = new LinearLayout.LayoutParams(0, dp(46), 1f);
+        right.leftMargin = dp(6);
+        tabs.addView(trashTab, right);
+
+        pendingTab.setOnClickListener(v -> {
+            showingTrash = false;
+            updateTabs();
+            renderList();
+        });
+
+        trashTab.setOnClickListener(v -> {
+            showingTrash = true;
+            updateTabs();
+            renderList();
+        });
+
+        LinearLayout.LayoutParams tabsP = matchWrap();
+        tabsP.bottomMargin = dp(14);
+        root.addView(tabs, tabsP);
+
+        listContainer = new LinearLayout(this);
+        listContainer.setOrientation(LinearLayout.VERTICAL);
+        root.addView(listContainer, matchWrap());
+
+        TextView localAi = text(
+                "IA local: estrutura preparada, mas a análise de áudio + imagem ainda não está ativada nesta beta.",
+                12,
+                false
+        );
+        localAi.setTextColor(MUTED);
+        LinearLayout.LayoutParams aiP = matchWrap();
+        aiP.topMargin = dp(18);
+        root.addView(localAi, aiP);
 
         setContentView(scroll);
     }
 
-    private void refreshStatus() {
-        SharedPreferences prefs = getSharedPreferences(
-                ShareReceiverActivity.PREFS_NAME,
-                MODE_PRIVATE
-        );
-
-        int count = prefs.getInt(ShareReceiverActivity.KEY_RECEIVED_COUNT, 0);
-        String url = prefs.getString(ShareReceiverActivity.KEY_LAST_URL, "");
-        long receivedAt = prefs.getLong(ShareReceiverActivity.KEY_LAST_RECEIVED_AT, 0L);
-
-        if (count > 0) {
-            statusValue.setText("Tudo funcionando ✓");
-            statusValue.setTextColor(COLOR_GREEN);
-            statusHint.setText("O app está recebendo os compartilhamentos corretamente.");
+    private void refresh() {
+        if (FolderManager.hasFolderAccess(this)) {
+            String name = FolderManager.getRootName(this);
+            folderText.setText((name == null || name.isEmpty()) ? "Pasta conectada ✓" : name + " ✓");
+            folderText.setTextColor(GREEN);
         } else {
-            statusValue.setText("Aguardando primeiro link");
-            statusValue.setTextColor(COLOR_TEXT);
-            statusHint.setText("Compartilhe um vídeo pelo Instagram ou TikTok para testar.");
+            folderText.setText("Conecte Download_Videos IA");
+            folderText.setTextColor(RED);
         }
 
-        countValue.setText(String.valueOf(count));
-        urlValue.setText(url == null || url.isEmpty() ? "Nenhum link recebido ainda." : url);
+        updateTabs();
+        renderList();
+    }
 
-        if (receivedAt > 0L) {
-            String formatted = DateFormat.getDateTimeInstance(
-                    DateFormat.SHORT,
-                    DateFormat.SHORT
-            ).format(new Date(receivedAt));
-            receivedAtValue.setText(formatted);
-        } else {
-            receivedAtValue.setText("—");
+    private void updateTabs() {
+        pendingTab.setBackground(rounded(showingTrash ? Color.TRANSPARENT : RED_SOFT, showingTrash ? BORDER : RED_SOFT, 18));
+        pendingTab.setTextColor(showingTrash ? MUTED : RED);
+        trashTab.setBackground(rounded(showingTrash ? RED_SOFT : Color.TRANSPARENT, showingTrash ? RED_SOFT : BORDER, 18));
+        trashTab.setTextColor(showingTrash ? RED : MUTED);
+    }
+
+    private void renderList() {
+        listContainer.removeAllViews();
+
+        List<AppStore.Item> items = showingTrash ? store.getTrash() : store.getPending();
+
+        if (items.isEmpty()) {
+            LinearLayout empty = card();
+            TextView title = text(showingTrash ? "Lixeira vazia" : "Nada pendente", 18, true);
+            title.setTextColor(TEXT);
+            empty.addView(title);
+
+            TextView desc = text(
+                    showingTrash
+                            ? "Itens enviados ficam aqui por até 7 dias."
+                            : "Compartilhe um Reel ou TikTok com Salvar na IA.",
+                    14,
+                    false
+            );
+            desc.setTextColor(MUTED);
+            LinearLayout.LayoutParams descP = matchWrap();
+            descP.topMargin = dp(6);
+            empty.addView(desc, descP);
+
+            listContainer.addView(empty, cardSpacing());
+            return;
+        }
+
+        for (AppStore.Item item : items) {
+            listContainer.addView(showingTrash ? trashCard(item) : pendingCard(item), cardSpacing());
         }
     }
 
-    private void animateEntrance() {
-        for (int i = 0; i < content.getChildCount(); i++) {
-            View child = content.getChildAt(i);
-            child.setAlpha(0f);
-            child.setTranslationY(dp(10));
+    private View pendingCard(AppStore.Item item) {
+        LinearLayout card = card();
 
-            ObjectAnimator fade = ObjectAnimator.ofFloat(child, View.ALPHA, 0f, 1f);
-            ObjectAnimator slide = ObjectAnimator.ofFloat(child, View.TRANSLATION_Y, dp(10), 0f);
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
 
-            AnimatorSet set = new AnimatorSet();
-            set.playTogether(fade, slide);
-            set.setDuration(260);
-            set.setStartDelay(i * 45L);
-            set.setInterpolator(new DecelerateInterpolator());
-            set.start();
+        TextView code = chip(item.code, RED_SOFT, RED);
+        top.addView(code);
+
+        TextView status = statusChip(item.status);
+        LinearLayout.LayoutParams statusP = wrapWrap();
+        statusP.leftMargin = dp(8);
+        top.addView(status, statusP);
+
+        card.addView(top);
+
+        String titleText = item.title == null || item.title.isEmpty()
+                ? (AppStore.STATUS_DOWNLOADING.equals(item.status) ? "Baixando vídeo…" : "Vídeo")
+                : item.title;
+
+        TextView title = text(titleText, 19, true);
+        title.setTextColor(TEXT);
+        LinearLayout.LayoutParams titleP = matchWrap();
+        titleP.topMargin = dp(12);
+        card.addView(title, titleP);
+
+        if (item.fileName != null && !item.fileName.isEmpty()) {
+            TextView file = text(item.fileName, 13, false);
+            file.setTextColor(MUTED);
+            file.setTextIsSelectable(true);
+            LinearLayout.LayoutParams fileP = matchWrap();
+            fileP.topMargin = dp(6);
+            card.addView(file, fileP);
+        }
+
+        TextView url = text(item.url, 12, false);
+        url.setTextColor(MUTED);
+        url.setTextIsSelectable(true);
+        LinearLayout.LayoutParams urlP = matchWrap();
+        urlP.topMargin = dp(8);
+        card.addView(url, urlP);
+
+        if (AppStore.STATUS_ERROR.equals(item.status) && item.error != null && !item.error.isEmpty()) {
+            TextView error = text(item.error, 13, true);
+            error.setTextColor(RED);
+            LinearLayout.LayoutParams errP = matchWrap();
+            errP.topMargin = dp(8);
+            card.addView(error, errP);
+
+            TextView retry = actionButton("Tentar novamente", false);
+            retry.setOnClickListener(v -> retry(item));
+            LinearLayout.LayoutParams retryP = matchWrap();
+            retryP.topMargin = dp(14);
+            card.addView(retry, retryP);
+        }
+
+        if (AppStore.STATUS_READY.equals(item.status)) {
+            TextView send = actionButton("Mandar para análise", true);
+            send.setOnClickListener(v -> sendForAnalysis(item));
+            LinearLayout.LayoutParams sendP = matchWrap();
+            sendP.topMargin = dp(14);
+            card.addView(send, sendP);
+
+            TextView done = actionButton("Marcar como enviado", false);
+            done.setOnClickListener(v -> markSent(item));
+            LinearLayout.LayoutParams doneP = matchWrap();
+            doneP.topMargin = dp(8);
+            card.addView(done, doneP);
+        }
+
+        return card;
+    }
+
+    private View trashCard(AppStore.Item item) {
+        LinearLayout card = card();
+
+        TextView code = chip(item.code, Color.rgb(239, 238, 237), MUTED);
+        card.addView(code);
+
+        TextView title = text(
+                item.title == null || item.title.isEmpty() ? "Vídeo enviado" : item.title,
+                18,
+                true
+        );
+        title.setTextColor(TEXT);
+        LinearLayout.LayoutParams titleP = matchWrap();
+        titleP.topMargin = dp(10);
+        card.addView(title, titleP);
+
+        long remaining = Math.max(0, (item.trashAt + TRASH_RETENTION_MS) - System.currentTimeMillis());
+        long days = (remaining + (24L * 60L * 60L * 1000L) - 1) / (24L * 60L * 60L * 1000L);
+
+        TextView info = text("Exclusão automática em até " + days + " dia(s)", 13, false);
+        info.setTextColor(MUTED);
+        LinearLayout.LayoutParams infoP = matchWrap();
+        infoP.topMargin = dp(6);
+        card.addView(info, infoP);
+
+        TextView restore = actionButton("Restaurar", false);
+        restore.setOnClickListener(v -> restore(item));
+        LinearLayout.LayoutParams restoreP = matchWrap();
+        restoreP.topMargin = dp(14);
+        card.addView(restore, restoreP);
+
+        TextView delete = actionButton("Excluir agora", false);
+        delete.setTextColor(RED);
+        delete.setOnClickListener(v -> deleteNow(item));
+        LinearLayout.LayoutParams deleteP = matchWrap();
+        deleteP.topMargin = dp(8);
+        card.addView(delete, deleteP);
+
+        return card;
+    }
+
+    private TextView statusChip(String status) {
+        if (AppStore.STATUS_READY.equals(status)) {
+            return chip("Pronto", GREEN_SOFT, GREEN);
+        }
+        if (AppStore.STATUS_ERROR.equals(status)) {
+            return chip("Erro", RED_SOFT, RED);
+        }
+        return chip("Baixando", AMBER_SOFT, AMBER);
+    }
+
+    private void chooseFolder() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION |
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION |
+                        Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION |
+                        Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+        );
+        startActivityForResult(intent, REQUEST_FOLDER);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQUEST_FOLDER && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            Uri uri = data.getData();
+            try {
+                FolderManager.saveTreeUri(this, uri, data.getFlags());
+                Toast.makeText(this, "Pasta conectada ✓", Toast.LENGTH_SHORT).show();
+                ensureNotificationPermission();
+                refresh();
+            } catch (Exception e) {
+                Toast.makeText(this, "Não foi possível salvar o acesso à pasta", Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    private void ensureNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
+        }
+    }
+
+    private void sendForAnalysis(AppStore.Item item) {
+        StringBuilder text = new StringBuilder();
+        text.append("Analise este vídeo.\n\n");
+        text.append("Código: ").append(item.code).append("\n");
+        if (item.title != null && !item.title.isEmpty()) {
+            text.append("Título: ").append(item.title).append("\n");
+        }
+        if (item.summary != null && !item.summary.isEmpty()) {
+            text.append("Pré-análise local: ").append(item.summary).append("\n");
+        }
+        if (item.fileName != null && !item.fileName.isEmpty()) {
+            text.append("Arquivo: ").append(item.fileName).append("\n");
+        }
+        text.append("Link original: ").append(item.url);
+
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        clipboard.setPrimaryClip(ClipData.newPlainText("Análise do vídeo", text.toString()));
+
+        Intent share = new Intent(Intent.ACTION_SEND);
+        share.setType("text/plain");
+        share.putExtra(Intent.EXTRA_TEXT, text.toString());
+        startActivity(Intent.createChooser(share, "Mandar para análise"));
+    }
+
+    private void retry(AppStore.Item item) {
+        if (!FolderManager.hasFolderAccess(this)) {
+            Toast.makeText(this, "Conecte a pasta primeiro", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        try {
+            store.markDownloading(item.id);
+            YtdlnisHelper.sendCommandDownload(this, item.url);
+            startMonitorService();
+            Toast.makeText(this, "Enviado novamente ao YTDLnis", Toast.LENGTH_SHORT).show();
+            refresh();
+        } catch (Exception e) {
+            store.markError(item.id, "Não foi possível abrir o YTDLnis");
+            refresh();
+        }
+    }
+
+    private void markSent(AppStore.Item item) {
+        if (item.fileUri == null || item.fileUri.isEmpty()) return;
+
+        Toast.makeText(this, "Movendo para a lixeira…", Toast.LENGTH_SHORT).show();
+        io.execute(() -> {
+            try {
+                Uri moved = FolderManager.moveToTrash(this, Uri.parse(item.fileUri), item.fileName);
+                store.markTrashed(item.id, moved.toString());
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Enviado • lixeira por 7 dias", Toast.LENGTH_SHORT).show();
+                    refresh();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "Não foi possível mover o arquivo", Toast.LENGTH_LONG).show()
+                );
+            }
+        });
+    }
+
+    private void restore(AppStore.Item item) {
+        if (item.fileUri == null || item.fileUri.isEmpty()) return;
+
+        io.execute(() -> {
+            try {
+                Uri moved = FolderManager.restoreFromTrash(this, Uri.parse(item.fileUri), item.fileName);
+                store.restore(item.id, moved.toString());
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Restaurado ✓", Toast.LENGTH_SHORT).show();
+                    refresh();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "Não foi possível restaurar", Toast.LENGTH_LONG).show()
+                );
+            }
+        });
+    }
+
+    private void deleteNow(AppStore.Item item) {
+        io.execute(() -> {
+            if (item.fileUri != null && !item.fileUri.isEmpty()) {
+                FolderManager.delete(this, Uri.parse(item.fileUri));
+            }
+            store.deleteRow(item.id);
+            runOnUiThread(this::refresh);
+        });
+    }
+
+    private void purgeExpiredTrashAsync() {
+        io.execute(() -> {
+            long cutoff = System.currentTimeMillis() - TRASH_RETENTION_MS;
+            for (AppStore.Item item : store.getTrash()) {
+                if (item.trashAt > 0 && item.trashAt <= cutoff) {
+                    if (item.fileUri != null && !item.fileUri.isEmpty()) {
+                        FolderManager.delete(this, Uri.parse(item.fileUri));
+                    }
+                    store.deleteRow(item.id);
+                }
+            }
+        });
+    }
+
+    private void startMonitorService() {
+        Intent service = new Intent(this, DownloadMonitorService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(service);
+        } else {
+            startService(service);
         }
     }
 
@@ -259,63 +537,67 @@ public class MainActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(18), dp(18), dp(18), dp(18));
-        card.setBackground(roundedBackground(COLOR_SURFACE, COLOR_BORDER, 22));
+        card.setBackground(rounded(SURFACE, BORDER, 22));
         card.setElevation(dp(2));
         return card;
     }
 
-    private LinearLayout compactCard() {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(16), dp(16), dp(16), dp(16));
-        card.setBackground(roundedBackground(COLOR_SURFACE, COLOR_BORDER, 20));
-        card.setElevation(dp(1));
-        return card;
+    private TextView tab(String value, boolean selected) {
+        TextView view = text(value, 14, true);
+        view.setGravity(Gravity.CENTER);
+        view.setTextColor(selected ? RED : MUTED);
+        view.setBackground(rounded(selected ? RED_SOFT : Color.TRANSPARENT, selected ? RED_SOFT : BORDER, 18));
+        return view;
     }
 
-    private TextView chip(String contentText, int backgroundColor, int textColor) {
-        TextView chip = text(contentText, 12, true);
-        chip.setTextColor(textColor);
-        chip.setGravity(Gravity.CENTER);
-        chip.setPadding(dp(11), dp(7), dp(11), dp(7));
-        chip.setBackground(roundedBackground(backgroundColor, backgroundColor, 99));
-        return chip;
+    private TextView actionButton(String value, boolean primary) {
+        TextView view = text(value, 15, true);
+        view.setGravity(Gravity.CENTER);
+        view.setPadding(dp(14), dp(13), dp(14), dp(13));
+        view.setTextColor(primary ? Color.WHITE : TEXT);
+        view.setBackground(rounded(primary ? RED : Color.rgb(247, 244, 243), primary ? RED : BORDER, 18));
+        view.setClickable(true);
+        view.setFocusable(true);
+        return view;
     }
 
-    private GradientDrawable roundedBackground(int fillColor, int strokeColor, int radiusDp) {
-        GradientDrawable drawable = new GradientDrawable();
-        drawable.setColor(fillColor);
-        drawable.setCornerRadius(dp(radiusDp));
-        drawable.setStroke(dp(1), strokeColor);
-        return drawable;
+    private TextView chip(String value, int bg, int color) {
+        TextView view = text(value, 12, true);
+        view.setGravity(Gravity.CENTER);
+        view.setTextColor(color);
+        view.setPadding(dp(11), dp(7), dp(11), dp(7));
+        view.setBackground(rounded(bg, bg, 99));
+        return view;
     }
 
-    private TextView label(String contentText) {
-        TextView view = text(contentText, 11, true);
-        view.setTextColor(COLOR_MUTED);
+    private TextView label(String value) {
+        TextView view = text(value, 11, true);
+        view.setTextColor(MUTED);
         view.setLetterSpacing(0.08f);
         return view;
     }
 
-    private TextView text(String contentText, int sizeSp, boolean bold) {
+    private TextView text(String value, int size, boolean bold) {
         TextView view = new TextView(this);
-        view.setText(contentText);
-        view.setTextSize(sizeSp);
+        view.setText(value);
+        view.setTextSize(size);
         view.setGravity(Gravity.START);
-        view.setFontFeatureSettings("kern");
-        if (bold) {
-            view.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-        } else {
-            view.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
-        }
+        view.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
         return view;
     }
 
-    private LinearLayout.LayoutParams cardParams(int top, int bottom) {
-        LinearLayout.LayoutParams params = matchWrap();
-        params.topMargin = top;
-        params.bottomMargin = bottom;
-        return params;
+    private GradientDrawable rounded(int fill, int stroke, int radiusDp) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(fill);
+        drawable.setCornerRadius(dp(radiusDp));
+        drawable.setStroke(dp(1), stroke);
+        return drawable;
+    }
+
+    private LinearLayout.LayoutParams cardSpacing() {
+        LinearLayout.LayoutParams p = matchWrap();
+        p.bottomMargin = dp(12);
+        return p;
     }
 
     private LinearLayout.LayoutParams matchWrap() {
@@ -339,9 +621,15 @@ public class MainActivity extends Activity {
     private String getVersionName() {
         try {
             PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
-            return info.versionName == null ? "0.1.1" : info.versionName;
+            return info.versionName == null ? "0.2.0" : info.versionName;
         } catch (Exception ignored) {
-            return "0.1.1";
+            return "0.2.0";
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        io.shutdownNow();
+        super.onDestroy();
     }
 }

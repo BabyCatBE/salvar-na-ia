@@ -1,87 +1,58 @@
 # Salvar na IA
 
-Miniaplicativo Android local, simples e sem custo recorrente para capturar vídeos compartilhados do Instagram/TikTok e organizar uma fila para análise posterior por IA.
+Miniaplicativo Android local para receber vídeos compartilhados, usar o YTDLnis como downloader e organizar uma fila simples para análise posterior em qualquer IA/app.
 
-## Versão atual: v0.1.1 — Share Target + refinamento visual
+## v0.2.0 — Beta integrada
 
-A Fase 1 está validada no aparelho real:
+Esta beta junta as partes já validadas do fluxo:
 
-- aparece no menu **Compartilhar** como **Salvar na IA**;
-- recebe texto/URL compartilhado pelo Instagram/TikTok;
-- extrai e salva localmente a URL;
-- registra quantidade e horário;
-- fecha imediatamente depois do compartilhamento;
-- permite abrir o app para conferir o último link;
-- interface com cards arredondados, melhor hierarquia visual e transições leves.
+- recebe URL via menu **Compartilhar**;
+- chama o YTDLnis diretamente em `TYPE=command` + `BACKGROUND=true`;
+- usa o Command Template **Salvar na IA** configurado no YTDLnis;
+- perfil YTDLnis validado com `-t mp4 --no-playlist`;
+- qualidade automática;
+- pasta exclusiva `Download_Videos IA`;
+- monitora a pasta escolhida pelo usuário via Storage Access Framework;
+- associa o arquivo baixado ao item;
+- renomeia com código curto + título do arquivo;
+- sequência de códigos: `1..9 → A1..A9 → B1..B9 → ...`;
+- mostra fila de pendentes;
+- botão **Mandar para análise** copia/prepara o texto e abre o compartilhamento genérico do Android;
+- botão **Marcar como enviado** move o vídeo para uma lixeira própria;
+- lixeira retém o arquivo por até 7 dias e permite restaurar ou excluir imediatamente;
+- itens com mais de 7 dias são apagados quando o app volta a ser executado.
 
-## Decisões de UX para as próximas fases
+### Primeira configuração depois de instalar
 
-O app não ficará preso a um único serviço de IA.
+Abra o app e toque em **Conectar / trocar pasta**. Escolha exatamente a pasta já usada pelo YTDLnis:
 
-O botão de saída será chamado:
+`Download_Videos IA`
 
-**Mandar para análise**
+Essa autorização é necessária porque o Android não compartilha automaticamente com o Salvar na IA a permissão que foi concedida ao YTDLnis.
 
-Esse botão deverá preparar/copiar o título, resumo, link original e nome exato do arquivo para que o usuário possa usar ChatGPT, Gemini, Claude ou outro app.
+## Fluxo da beta
 
-### Organização dos vídeos
+`Instagram/TikTok → Compartilhar → Salvar na IA → YTDLnis baixa em segundo plano → Salvar na IA detecta → renomeia → Pronto → Mandar para análise → Marcar como enviado → Lixeira 7 dias`
 
-- Todos os vídeos prontos ficam na mesma pasta.
-- Depois da análise local, o MP4 será renomeado com um código curto + título.
-- Sequência planejada dos códigos:
-  `1 ... 9` → `A1 ... A9` → `B1 ... B9` → ... → `Z1 ... Z9` → `AA1 ... AA9` ...
-- Exemplo:
-  `A3 - Como automatizar estoque com IA.mp4`
+## Perfil YTDLnis
 
-### Ciclo planejado
+O uso normal do YTDLnis continua independente.
 
-`Compartilhado → Baixando → IA local analisando → Pronto → Mandar para análise → Marcar como enviado → Lixeira por 7 dias → Exclusão definitiva`
+O perfil **Salvar na IA** deve ser:
+- Modelo de comando preferido: ligado;
+- Comando extra: desligado;
+- URL Regex: vazio;
+- Pasta de comandos personalizados: `Download_Videos IA`;
+- Comando: `-t mp4 --no-playlist`.
 
-Ao marcar como enviado, o item sai da fila principal e o arquivo deixa a pasta de pendentes. Ele permanece recuperável por 7 dias na lixeira local antes da exclusão definitiva.
+## IA local
 
-## Próxima fase
+A estrutura de dados já possui título e resumo para receber uma futura pré-análise local. A análise real de vídeo por IA local (imagem + áudio) **ainda não está ativada nesta beta**, porque o modelo/runtime local ainda precisa ser escolhido e testado no aparelho real. O app não inventa um resumo: enquanto isso, usa o título real do arquivo baixado.
 
-**Fase 2 — YTDLnis**
+## Observação da beta
 
-O app deverá enviar a URL recebida ao YTDLnis para iniciar o download em segundo plano. A Fase 3 ficará responsável por associar com segurança o MP4 baixado ao item correspondente.
+A associação automática usa a chegada do arquivo novo na pasta exclusiva. Para o teste inicial, evite iniciar manualmente outro download para a mesma pasta enquanto um item do Salvar na IA estiver baixando.
 
 ## Build
 
-O workflow `Build APK` gera um APK debug e publica o arquivo como artifact do GitHub Actions.
-
-
-## Integração YTDLnis — perfil isolado do uso normal
-
-Decisão para a Fase 2:
-
-O **Salvar na IA não deve alterar as preferências normais de vídeo do YTDLnis**.
-
-Serão dois fluxos independentes:
-
-### Compartilhar diretamente para YTDLnis
-Continua usando as configurações normais escolhidas pelo usuário no YTDLnis:
-- diretório normal;
-- formato normal;
-- qualidade normal;
-- demais preferências pessoais.
-
-### Compartilhar para Salvar na IA
-O Salvar na IA enviará a URL ao pacote `com.deniscerri.ytdl` usando:
-- `ACTION_SEND`;
-- `TYPE=command`;
-- `BACKGROUND=true`.
-
-O YTDLnis deverá ter um **Command Template dedicado chamado "Salvar na IA"**, marcado como preferido para command downloads.
-
-Configuração planejada desse perfil:
-- pasta dedicada: `Download_Videos IA`;
-- vídeo completo;
-- áudio mantido;
-- qualidade automática: melhor formato disponível escolhido pelo yt-dlp;
-- sem limite fixo de resolução;
-- saída MP4 usando o preset oficial do yt-dlp;
-- download em segundo plano.
-
-O YTDLnis atual não permite mais injetar o conteúdo arbitrário do comando pelo Intent. Por isso, o template será configurado uma única vez dentro do YTDLnis e o nosso app apenas selecionará o tipo `command`.
-
-Isso mantém o uso direto do YTDLnis independente do fluxo Salvar na IA.
+O GitHub Actions gera o APK debug automaticamente.

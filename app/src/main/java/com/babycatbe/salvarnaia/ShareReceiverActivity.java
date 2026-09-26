@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.ClipData;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Patterns;
 import android.widget.Toast;
@@ -57,7 +58,6 @@ public class ShareReceiverActivity extends Activity {
 
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         int newCount = prefs.getInt(KEY_RECEIVED_COUNT, 0) + 1;
-
         prefs.edit()
                 .putString(KEY_LAST_RAW, rawText)
                 .putString(KEY_LAST_URL, detectedUrl)
@@ -65,15 +65,40 @@ public class ShareReceiverActivity extends Activity {
                 .putInt(KEY_RECEIVED_COUNT, newCount)
                 .apply();
 
-        Toast.makeText(this, "Link recebido ✓", Toast.LENGTH_SHORT).show();
+        AppStore store = new AppStore(this);
+        AppStore.Item item = store.addDownloading(detectedUrl);
+
+        if (!FolderManager.hasFolderAccess(this)) {
+            store.markError(item.id, "Conecte a pasta Download_Videos IA no app");
+            Toast.makeText(this, "Abra Salvar na IA e conecte a pasta", Toast.LENGTH_LONG).show();
+            finishAndRemoveTask();
+            return;
+        }
+
+        try {
+            YtdlnisHelper.sendCommandDownload(this, detectedUrl);
+            startMonitorService();
+            Toast.makeText(this, "Enviado ao YTDLnis ✓", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            store.markError(item.id, "Não foi possível abrir o YTDLnis");
+            Toast.makeText(this, "Não foi possível abrir o YTDLnis", Toast.LENGTH_LONG).show();
+        }
+
         finishAndRemoveTask();
+    }
+
+    private void startMonitorService() {
+        Intent service = new Intent(this, DownloadMonitorService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(service);
+        } else {
+            startService(service);
+        }
     }
 
     private String findFirstUrl(String text) {
         Matcher matcher = Patterns.WEB_URL.matcher(text);
-        if (matcher.find()) {
-            return matcher.group();
-        }
+        if (matcher.find()) return matcher.group();
         return text;
     }
 }
