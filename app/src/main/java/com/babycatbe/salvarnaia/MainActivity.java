@@ -20,10 +20,12 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -36,6 +38,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
+
+    public static final String ACTION_INSTALL_UPDATE =
+            "com.babycatbe.salvarnaia.INSTALL_UPDATE";
 
     private static final int REQUEST_FOLDER = 3001;
     private static final int REQUEST_NOTIFICATIONS = 3002;
@@ -85,8 +90,10 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         store = new AppStore(this);
+        AppUpdateManager.cleanupAfterInstalledUpdate(this);
         configureBars();
         buildUi();
+        handleUpdateIntent(getIntent());
     }
 
     @Override
@@ -103,12 +110,38 @@ public class MainActivity extends Activity {
 
         uiHandler.removeCallbacks(aiDownloadPoller);
         uiHandler.post(aiDownloadPoller);
+
+        AppUpdateManager.resumeInstallAfterPermission(this);
     }
 
     @Override
     protected void onPause() {
         uiHandler.removeCallbacks(aiDownloadPoller);
         super.onPause();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleUpdateIntent(intent);
+    }
+
+    private void handleUpdateIntent(Intent intent) {
+        if (intent == null || !ACTION_INSTALL_UPDATE.equals(intent.getAction())) return;
+
+        uiHandler.post(() -> {
+            if (!AppUpdateManager.installDownloadedUpdate(this)) {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+                        getPackageManager().canRequestPackageInstalls()) {
+                    Toast.makeText(
+                            this,
+                            "Não foi possível abrir o instalador da atualização",
+                            Toast.LENGTH_LONG
+                    ).show();
+                }
+            }
+        });
     }
 
     private void configureBars() {
@@ -131,10 +164,33 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
+        LinearLayout topBar = new LinearLayout(this);
+        topBar.setOrientation(LinearLayout.HORIZONTAL);
+        topBar.setGravity(Gravity.CENTER_VERTICAL);
+
         TextView eyebrow = text("SALVAR NA IA", 12, true);
         eyebrow.setTextColor(RED);
         eyebrow.setLetterSpacing(0.12f);
-        root.addView(eyebrow);
+        LinearLayout.LayoutParams eyebrowP = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        );
+        topBar.addView(eyebrow, eyebrowP);
+
+        TextView settingsButton = text("⚙", 20, false);
+        settingsButton.setGravity(Gravity.CENTER);
+        settingsButton.setPadding(dp(10), dp(6), dp(10), dp(6));
+        settingsButton.setBackground(
+                rounded(Color.rgb(239, 238, 237), BORDER, 99)
+        );
+        settingsButton.setClickable(true);
+        settingsButton.setFocusable(true);
+        settingsButton.setContentDescription("Configurações");
+        settingsButton.setOnClickListener(v -> showSettings());
+        topBar.addView(settingsButton, wrapWrap());
+
+        root.addView(topBar);
 
         TextView title = text("Vídeos prontos para análise.", 29, true);
         title.setTextColor(TEXT);
@@ -312,8 +368,23 @@ public class MainActivity extends Activity {
             return;
         }
 
+        if (showingTrash) {
+            TextView emptyTrash = actionButton(
+                    "Esvaziar lixeira (" + items.size() + ")",
+                    false
+            );
+            emptyTrash.setTextColor(RED);
+            emptyTrash.setOnClickListener(v -> confirmEmptyTrash());
+            LinearLayout.LayoutParams emptyTrashP = matchWrap();
+            emptyTrashP.bottomMargin = dp(12);
+            listContainer.addView(emptyTrash, emptyTrashP);
+        }
+
         for (AppStore.Item item : items) {
-            listContainer.addView(showingTrash ? trashCard(item) : pendingCard(item), cardSpacing());
+            listContainer.addView(
+                    showingTrash ? trashCard(item) : pendingCard(item),
+                    cardSpacing()
+            );
         }
     }
 
@@ -787,13 +858,7 @@ public class MainActivity extends Activity {
             text.append("Arquivo: ").append(item.fileName).append("\n");
         }
         text.append("Link original: ").append(item.url).append("\n\n");
-        text.append(
-                "Analise o vídeo completo usando o MP4 anexado. " +
-                        "Identifique os principais pontos e as informações práticas relevantes. " +
-                        "Use a pré-análise local apenas como contexto: confirme, corrija e complemente. " +
-                        "Ao final, salve a análise organizada no Notion na página \"Análises de Vídeos\", " +
-                        "criando uma nova subpágina para este vídeo com o código e o título."
-        );
+        text.append(AppSettings.getAnalysisPrompt(this));
 
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         clipboard.setPrimaryClip(ClipData.newPlainText("Análise do vídeo", text.toString()));
@@ -863,24 +928,319 @@ public class MainActivity extends Activity {
 
     private void deleteNow(AppStore.Item item) {
         io.execute(() -> {
-            if (item.fileUri != null && !item.fileUri.isEmpty()) {
-                FolderManager.delete(this, Uri.parse(item.fileUri));
+            boolean deleted = deleteTrashFileOrMissing(item);
+            if (deleted) {
+                store.deleteRow(item.id);
             }
-            store.deleteRow(item.id);
-            runOnUiThread(this::refresh);
+
+            boolean finalDeleted = deleted;
+            runOnUiThread(() -> {
+                if (!finalDeleted) {
+                    Toast.makeText(
+                            this,
+                            "Não foi possível apagar o arquivo físico",
+                            Toast.LENGTH_LONG
+                    ).show();
+                }
+                refresh();
+            });
         });
+    }
+
+    private void confirmEmptyTrash() {
+        List<AppStore.Item> trash = store.getTrash();
+        if (trash.isEmpty()) return;
+
+        new AlertDialog.Builder(this)
+                .setTitle("Esvaziar lixeira?")
+                .setMessage(
+                        "Isso excluirá permanentemente " + trash.size() +
+                                " vídeo(s), apagará os registros e liberará os códigos. " +
+                                "Essa ação não pode ser desfeita."
+                )
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton("Excluir tudo", (dialog, which) -> emptyTrashPermanently())
+                .show();
+    }
+
+    private void emptyTrashPermanently() {
+        Toast.makeText(this, "Esvaziando lixeira…", Toast.LENGTH_SHORT).show();
+
+        io.execute(() -> {
+            int deleted = 0;
+            int failed = 0;
+
+            for (AppStore.Item item : store.getTrash()) {
+                if (deleteTrashFileOrMissing(item)) {
+                    store.deleteRow(item.id);
+                    deleted++;
+                } else {
+                    failed++;
+                }
+            }
+
+            int deletedCount = deleted;
+            int failedCount = failed;
+            runOnUiThread(() -> {
+                if (failedCount == 0) {
+                    Toast.makeText(
+                            this,
+                            deletedCount + " item(ns) excluído(s) permanentemente",
+                            Toast.LENGTH_LONG
+                    ).show();
+                } else {
+                    Toast.makeText(
+                            this,
+                            deletedCount + " excluído(s) • " +
+                                    failedCount + " não puderam ser apagados",
+                            Toast.LENGTH_LONG
+                    ).show();
+                }
+                refresh();
+            });
+        });
+    }
+
+    private boolean deleteTrashFileOrMissing(AppStore.Item item) {
+        if (item.fileUri == null || item.fileUri.isEmpty()) return true;
+
+        Uri uri = Uri.parse(item.fileUri);
+        if (!FolderManager.exists(this, uri)) return true;
+        return FolderManager.delete(this, uri);
     }
 
     private void purgeExpiredTrashAsync() {
         io.execute(() -> {
             long cutoff = System.currentTimeMillis() - TRASH_RETENTION_MS;
+            boolean changed = false;
+
             for (AppStore.Item item : store.getTrash()) {
                 if (item.trashAt > 0 && item.trashAt <= cutoff) {
-                    if (item.fileUri != null && !item.fileUri.isEmpty()) {
-                        FolderManager.delete(this, Uri.parse(item.fileUri));
+                    if (deleteTrashFileOrMissing(item)) {
+                        store.deleteRow(item.id);
+                        changed = true;
                     }
-                    store.deleteRow(item.id);
                 }
+            }
+
+            if (changed) runOnUiThread(this::refresh);
+        });
+    }
+
+    private void showSettings() {
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(8), dp(20), dp(8));
+        scroll.addView(content);
+
+        TextView promptTitle = text("Prompt de análise", 16, true);
+        promptTitle.setTextColor(TEXT);
+        content.addView(promptTitle);
+
+        TextView promptHint = text(
+                "Este texto é acrescentado depois do código, título, pré-análise, arquivo e link.",
+                13,
+                false
+        );
+        promptHint.setTextColor(MUTED);
+        LinearLayout.LayoutParams promptHintP = matchWrap();
+        promptHintP.topMargin = dp(5);
+        content.addView(promptHint, promptHintP);
+
+        EditText promptInput = new EditText(this);
+        promptInput.setText(AppSettings.getAnalysisPrompt(this));
+        promptInput.setTextSize(14);
+        promptInput.setTextColor(TEXT);
+        promptInput.setMinLines(7);
+        promptInput.setGravity(Gravity.TOP | Gravity.START);
+        promptInput.setInputType(
+                InputType.TYPE_CLASS_TEXT |
+                        InputType.TYPE_TEXT_FLAG_MULTI_LINE |
+                        InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        );
+        promptInput.setPadding(dp(12), dp(10), dp(12), dp(10));
+        promptInput.setBackground(rounded(Color.WHITE, BORDER, 14));
+        LinearLayout.LayoutParams promptP = matchWrap();
+        promptP.topMargin = dp(10);
+        content.addView(promptInput, promptP);
+
+        TextView savePrompt = actionButton("Salvar prompt", true);
+        LinearLayout.LayoutParams savePromptP = matchWrap();
+        savePromptP.topMargin = dp(10);
+        content.addView(savePrompt, savePromptP);
+
+        TextView resetPrompt = actionButton("Restaurar prompt padrão", false);
+        LinearLayout.LayoutParams resetPromptP = matchWrap();
+        resetPromptP.topMargin = dp(8);
+        resetPromptP.bottomMargin = dp(22);
+        content.addView(resetPrompt, resetPromptP);
+
+        TextView updateTitle = text("Atualizações", 16, true);
+        updateTitle.setTextColor(TEXT);
+        content.addView(updateTitle);
+
+        TextView updateStatus = text(
+                "Versão instalada: v" + getVersionName(),
+                13,
+                false
+        );
+        updateStatus.setTextColor(MUTED);
+        LinearLayout.LayoutParams updateStatusP = matchWrap();
+        updateStatusP.topMargin = dp(6);
+        content.addView(updateStatus, updateStatusP);
+
+        TextView updateAction = actionButton("Verificar atualização", false);
+        LinearLayout.LayoutParams updateActionP = matchWrap();
+        updateActionP.topMargin = dp(10);
+        content.addView(updateAction, updateActionP);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Configurações")
+                .setView(scroll)
+                .setNegativeButton("Fechar", null)
+                .create();
+
+        savePrompt.setOnClickListener(v -> {
+            AppSettings.saveAnalysisPrompt(this, promptInput.getText().toString());
+            Toast.makeText(this, "Prompt salvo ✓", Toast.LENGTH_SHORT).show();
+        });
+
+        resetPrompt.setOnClickListener(v -> {
+            AppSettings.resetAnalysisPrompt(this);
+            promptInput.setText(AppSettings.DEFAULT_ANALYSIS_PROMPT);
+            Toast.makeText(this, "Prompt padrão restaurado", Toast.LENGTH_SHORT).show();
+        });
+
+        configureUpdateControls(updateStatus, updateAction);
+
+        dialog.show();
+    }
+
+    private void configureUpdateControls(TextView status, TextView action) {
+        AppUpdateManager.DownloadState download =
+                AppUpdateManager.getDownloadState(this);
+        String target = AppUpdateManager.getSavedTargetVersion(this);
+
+        if (download.isSuccessful() && target != null && !target.isEmpty()) {
+            status.setText(
+                    "v" + target + " baixada e pronta para instalar"
+            );
+            status.setTextColor(GREEN);
+            action.setText("Instalar atualização");
+            action.setClickable(true);
+            action.setOnClickListener(v -> {
+                if (!AppUpdateManager.installDownloadedUpdate(this) &&
+                        (Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+                                getPackageManager().canRequestPackageInstalls())) {
+                    Toast.makeText(
+                            this,
+                            "Não foi possível abrir o instalador",
+                            Toast.LENGTH_LONG
+                    ).show();
+                }
+            });
+            return;
+        }
+
+        if (download.isActive()) {
+            int percent = download.percent();
+            status.setText(
+                    percent >= 0
+                            ? "Baixando atualização • " + percent + "%"
+                            : "Baixando atualização…"
+            );
+            status.setTextColor(AMBER);
+            action.setText("Download em andamento");
+            action.setClickable(false);
+            return;
+        }
+
+        if (download.isFailed()) {
+            status.setText("O último download de atualização falhou");
+            status.setTextColor(RED);
+        } else {
+            status.setText("Versão instalada: v" + getVersionName());
+            status.setTextColor(MUTED);
+        }
+
+        action.setText("Verificar atualização");
+        action.setClickable(true);
+        action.setOnClickListener(v -> checkForUpdate(status, action));
+    }
+
+    private void checkForUpdate(TextView status, TextView action) {
+        action.setText("Verificando…");
+        action.setClickable(false);
+        status.setText("Consultando GitHub Releases…");
+        status.setTextColor(MUTED);
+
+        io.execute(() -> {
+            try {
+                AppUpdateManager.UpdateInfo info =
+                        AppUpdateManager.checkLatest(this);
+
+                runOnUiThread(() -> {
+                    if (!info.updateAvailable) {
+                        status.setText(
+                                "Você já está na versão mais recente: v" +
+                                        getVersionName()
+                        );
+                        status.setTextColor(GREEN);
+                        action.setText("Verificar novamente");
+                        action.setClickable(true);
+                        action.setOnClickListener(
+                                v -> checkForUpdate(status, action)
+                        );
+                        return;
+                    }
+
+                    status.setText(
+                            "Nova versão disponível: v" + info.version
+                    );
+                    status.setTextColor(GREEN);
+                    action.setText("Baixar e instalar v" + info.version);
+                    action.setClickable(true);
+                    action.setOnClickListener(v -> {
+                        try {
+                            AppUpdateManager.startDownload(this, info);
+                            status.setText(
+                                    "Download iniciado. Ao terminar, " +
+                                            "toque na notificação para instalar."
+                            );
+                            status.setTextColor(AMBER);
+                            action.setText("Download em andamento");
+                            action.setClickable(false);
+                            Toast.makeText(
+                                    this,
+                                    "Atualização sendo baixada",
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        } catch (Exception e) {
+                            status.setText(
+                                    "Não foi possível iniciar o download"
+                            );
+                            status.setTextColor(RED);
+                            action.setText("Tentar novamente");
+                            action.setClickable(true);
+                            action.setOnClickListener(
+                                    retry -> checkForUpdate(status, action)
+                            );
+                        }
+                    });
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    status.setText(
+                            "Não foi possível verificar atualizações"
+                    );
+                    status.setTextColor(RED);
+                    action.setText("Tentar novamente");
+                    action.setClickable(true);
+                    action.setOnClickListener(
+                            v -> checkForUpdate(status, action)
+                    );
+                });
             }
         });
     }

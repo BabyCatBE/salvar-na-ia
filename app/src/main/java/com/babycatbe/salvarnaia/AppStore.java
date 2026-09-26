@@ -55,19 +55,24 @@ public class AppStore extends SQLiteOpenHelper {
 
     public synchronized Item addDownloading(String url) {
         long now = System.currentTimeMillis();
-        ContentValues values = new ContentValues();
-        values.put("url", url);
-        values.put("status", STATUS_DOWNLOADING);
-        values.put("created_at", now);
-        values.put("updated_at", now);
-
         SQLiteDatabase db = getWritableDatabase();
-        long id = db.insertOrThrow("items", null, values);
+        long id;
 
-        String code = codeFor(id);
-        ContentValues codeValues = new ContentValues();
-        codeValues.put("code", code);
-        db.update("items", codeValues, "id=?", new String[]{String.valueOf(id)});
+        db.beginTransaction();
+        try {
+            ContentValues values = new ContentValues();
+            values.put("code", nextAvailableCode(db));
+            values.put("url", url);
+            values.put("status", STATUS_DOWNLOADING);
+            values.put("created_at", now);
+            values.put("updated_at", now);
+
+            id = db.insertOrThrow("items", null, values);
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+
         return get(id);
     }
 
@@ -288,6 +293,31 @@ public class AppStore extends SQLiteOpenHelper {
         item.updatedAt = c.getLong(c.getColumnIndexOrThrow("updated_at"));
         item.trashAt = c.getLong(c.getColumnIndexOrThrow("trash_at"));
         return item;
+    }
+
+    private String nextAvailableCode(SQLiteDatabase db) {
+        Set<String> used = new HashSet<>();
+        try (Cursor c = db.query(
+                "items",
+                new String[]{"code"},
+                "code<>''",
+                null,
+                null,
+                null,
+                null
+        )) {
+            while (c.moveToNext()) {
+                String code = c.getString(0);
+                if (code != null && !code.isEmpty()) used.add(code);
+            }
+        }
+
+        long position = 1;
+        while (true) {
+            String candidate = codeFor(position);
+            if (!used.contains(candidate)) return candidate;
+            position++;
+        }
     }
 
     public static String codeFor(long id) {
