@@ -776,11 +776,6 @@ public class MainActivity extends Activity {
 
     private void sendForAnalysis(AppStore.Item item) {
         StringBuilder text = new StringBuilder();
-        text.append(
-                "Analise o vídeo completo usando o MP4 anexado. " +
-                        "A pré-análise local abaixo é apenas contexto inicial: " +
-                        "confirme, corrija e complemente com o que realmente aparece no vídeo.\n\n"
-        );
         text.append("Código: ").append(item.code).append("\n");
         if (item.title != null && !item.title.isEmpty()) {
             text.append("Título: ").append(item.title).append("\n");
@@ -791,7 +786,14 @@ public class MainActivity extends Activity {
         if (item.fileName != null && !item.fileName.isEmpty()) {
             text.append("Arquivo: ").append(item.fileName).append("\n");
         }
-        text.append("Link original: ").append(item.url);
+        text.append("Link original: ").append(item.url).append("\n\n");
+        text.append(
+                "Analise o vídeo completo usando o MP4 anexado. " +
+                        "Identifique os principais pontos e as informações práticas relevantes. " +
+                        "Use a pré-análise local apenas como contexto: confirme, corrija e complemente. " +
+                        "Ao final, salve a análise organizada no Notion na página \"Análises de Vídeos\", " +
+                        "criando uma nova subpágina para este vídeo com o código e o título."
+        );
 
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         clipboard.setPrimaryClip(ClipData.newPlainText("Análise do vídeo", text.toString()));
