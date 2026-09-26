@@ -16,6 +16,7 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 public class FolderManager {
 
@@ -101,6 +102,50 @@ public class FolderManager {
 
         files.sort(Comparator.comparingLong(e -> e.lastModified));
         return files;
+    }
+
+    public static Entry findRootVideoBySourceUrl(
+            Context context,
+            String rawUrl,
+            Set<String> excludedUris
+    ) {
+        String token = sourceTokenFromUrl(rawUrl);
+        if (token.isEmpty()) return null;
+
+        for (Entry file : listRootVideos(context)) {
+            if (file.size == 0) continue;
+            if (excludedUris != null && excludedUris.contains(file.uri.toString())) continue;
+
+            String name = file.name == null ? "" : file.name;
+            if (name.toLowerCase().contains(token.toLowerCase())) {
+                return file;
+            }
+        }
+
+        return null;
+    }
+
+    private static String sourceTokenFromUrl(String rawUrl) {
+        if (rawUrl == null || rawUrl.isEmpty()) return "";
+
+        try {
+            Uri uri = Uri.parse(rawUrl);
+            List<String> segments = uri.getPathSegments();
+
+            for (int i = segments.size() - 1; i >= 0; i--) {
+                String segment = segments.get(i);
+                if (segment == null || segment.isEmpty()) continue;
+                if ("reel".equalsIgnoreCase(segment) ||
+                        "p".equalsIgnoreCase(segment) ||
+                        "video".equalsIgnoreCase(segment)) {
+                    continue;
+                }
+                if (segment.length() >= 6) return segment;
+            }
+        } catch (Exception ignored) {
+        }
+
+        return "";
     }
 
     public static Uri rename(Context context, Uri uri, String newName) {
