@@ -138,8 +138,13 @@ public class MainActivity extends Activity {
         purgeExpiredTrashAsync();
         reconcileMissingFilesAsync();
 
-        if (LocalAiModelManager.isModelDownloaded(this) &&
-                !store.getAiSetupRequired().isEmpty()) {
+        boolean hasWorkToResume =
+                !store.getDownloading().isEmpty() ||
+                !store.getAnalyzing().isEmpty() ||
+                (LocalAiModelManager.isModelDownloaded(this) &&
+                        !store.getAiSetupRequired().isEmpty());
+
+        if (hasWorkToResume) {
             startMonitorService();
         }
 
@@ -1000,14 +1005,61 @@ public class MainActivity extends Activity {
         }
 
         try {
+            FolderManager.Entry existing =
+                    FolderManager.findRootVideoBySourceUrl(
+                            this,
+                            item.url,
+                            store.getUsedFileUris()
+                    );
+
+            if (existing != null) {
+                attachExistingDownloadedFile(item, existing);
+                startMonitorService();
+                Toast.makeText(
+                        this,
+                        "MP4 já encontrado • retomando análise",
+                        Toast.LENGTH_SHORT
+                ).show();
+                refresh();
+                return;
+            }
+
             store.markDownloading(item.id);
             YtdlnisHelper.sendCommandDownload(this, item.url);
             startMonitorService();
             Toast.makeText(this, "Enviado novamente ao YTDLnis", Toast.LENGTH_SHORT).show();
             refresh();
         } catch (Exception e) {
-            store.markError(item.id, "Não foi possível abrir o YTDLnis");
+            store.markError(item.id, "Não foi possível retomar o vídeo");
             refresh();
+        }
+    }
+
+    private void attachExistingDownloadedFile(
+            AppStore.Item item,
+            FolderManager.Entry candidate
+    ) {
+        String title = FolderManager.titleFromFileName(candidate.name);
+        String ext = FolderManager.extensionOf(candidate.name);
+        String wantedName = FolderManager.safeFileName(item.code, title, ext);
+        Uri finalUri = FolderManager.rename(this, candidate.uri, wantedName);
+        String actualName = FolderManager.getDisplayName(this, finalUri);
+        if (actualName == null || actualName.isEmpty()) actualName = wantedName;
+
+        if (LocalAiModelManager.isModelDownloaded(this)) {
+            store.markAnalyzing(
+                    item.id,
+                    finalUri.toString(),
+                    actualName,
+                    title
+            );
+        } else {
+            store.markAiSetupRequired(
+                    item.id,
+                    finalUri.toString(),
+                    actualName,
+                    title
+            );
         }
     }
 
