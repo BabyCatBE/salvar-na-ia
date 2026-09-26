@@ -616,6 +616,8 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams sendP = matchWrap();
         sendP.topMargin = dp(10);
         card.addView(send, sendP);
+
+        addViewVideoButton(card, item);
     }
 
     private void addSendAndDone(LinearLayout card, AppStore.Item item) {
@@ -625,11 +627,50 @@ public class MainActivity extends Activity {
         sendP.topMargin = dp(14);
         card.addView(send, sendP);
 
+        addViewVideoButton(card, item);
+
         TextView done = actionButton("Marcar como enviado", false);
         done.setOnClickListener(v -> markSent(item));
         LinearLayout.LayoutParams doneP = matchWrap();
         doneP.topMargin = dp(8);
         card.addView(done, doneP);
+    }
+
+    private void addViewVideoButton(LinearLayout card, AppStore.Item item) {
+        TextView viewVideo = actionButton("Ver vídeo", false);
+        viewVideo.setOnClickListener(v -> viewVideo(item));
+        LinearLayout.LayoutParams viewP = matchWrap();
+        viewP.topMargin = dp(8);
+        card.addView(viewVideo, viewP);
+    }
+
+    private void viewVideo(AppStore.Item item) {
+        if (item.fileUri == null || item.fileUri.isEmpty()) {
+            Toast.makeText(this, "Arquivo do vídeo não disponível", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        Uri uri = Uri.parse(item.fileUri);
+        if (!FolderManager.exists(this, uri)) {
+            store.markFileMissing(item.id);
+            refresh();
+            Toast.makeText(this, "O arquivo do vídeo não foi encontrado", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        try {
+            Intent view = new Intent(Intent.ACTION_VIEW);
+            view.setDataAndType(uri, "video/*");
+            view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            view.setClipData(ClipData.newRawUri("Vídeo", uri));
+            startActivity(Intent.createChooser(view, "Ver vídeo"));
+        } catch (Exception e) {
+            Toast.makeText(
+                    this,
+                    "Não foi possível abrir o vídeo neste aparelho",
+                    Toast.LENGTH_LONG
+            ).show();
+        }
     }
 
     private void retryAnalysis(AppStore.Item item) {
@@ -735,7 +776,11 @@ public class MainActivity extends Activity {
 
     private void sendForAnalysis(AppStore.Item item) {
         StringBuilder text = new StringBuilder();
-        text.append("Analise este vídeo.\n\n");
+        text.append(
+                "Analise o vídeo completo usando o MP4 anexado. " +
+                        "A pré-análise local abaixo é apenas contexto inicial: " +
+                        "confirme, corrija e complemente com o que realmente aparece no vídeo.\n\n"
+        );
         text.append("Código: ").append(item.code).append("\n");
         if (item.title != null && !item.title.isEmpty()) {
             text.append("Título: ").append(item.title).append("\n");
