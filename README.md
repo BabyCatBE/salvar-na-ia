@@ -160,4 +160,4 @@ O retry de **Arquivo ausente** foi validado na v0.4.6: com o MP4 já existente n
 
 O prompt editável/restaurável foi validado: alteração manual foi salva e **Restaurar prompt padrão** voltou corretamente ao texto original.
 
-Agora validar os controles rápidos de copiar link/cancelar, a reciclagem do menor código livre e **Esvaziar lixeira**.
+A v0.4.6 seguirá em uso normal. Os controles rápidos de copiar link/cancelar, a reciclagem do menor código livre e **Esvaziar lixeira** permanecem **PENDENTES DE TESTE específico** e serão validados conforme aparecerem naturalmente no uso real.
