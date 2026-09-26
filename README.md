@@ -8,7 +8,7 @@ Aplicativo Android local para receber vídeos compartilhados, usar o YTDLnis com
 **Versão instalada no aparelho:** v0.4.6  
 **Atualizador interno:** TESTADO / APROVADO  
 **Configurações arredondadas:** TESTADAS / APROVADAS  
-**Retry de Arquivo ausente na v0.4.6:** A TESTAR  
+**Retry de Arquivo ausente na v0.4.6:** TESTADO / APROVADO  
 **Salvar/restaurar prompt, reciclagem de códigos, Esvaziar lixeira e controles rápidos:** A TESTAR
 
 A base v0.3.3 permanece **TESTADA/APROVADA** no fluxo completo: download, pré-análise local, Ver vídeo, Mandar para análise, análise externa e salvamento no Notion.
@@ -155,6 +155,6 @@ O workflow:
 
 O atualizador interno já foi validado no aparelho no fluxo **v0.4.1 → v0.4.6**, preservando pasta, Gemma e registros. O visual arredondado das Configurações também foi aprovado.
 
-Agora testar o item A1 que está em **Erro** e cujo MP4 já existe fisicamente na pasta. Na v0.4.6, tocar **Tentar download novamente**. O esperado é o app localizar o arquivo existente pelo identificador da URL, mostrar **“MP4 já encontrado • retomando análise”** e seguir para **Analisando IA → Pronto** sem disparar outro download no YTDLnis.
+O retry de **Arquivo ausente** foi validado na v0.4.6: com o MP4 já existente na pasta, o app localizou e reaproveitou o arquivo e retomou o processamento sem criar outro download.
 
-Depois validar salvar/restaurar prompt, controles rápidos de copiar link/cancelar, reciclagem do menor código livre e **Esvaziar lixeira**.
+Agora validar salvar/restaurar prompt, controles rápidos de copiar link/cancelar, reciclagem do menor código livre e **Esvaziar lixeira**.
