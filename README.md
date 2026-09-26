@@ -48,3 +48,40 @@ O app deverá enviar a URL recebida ao YTDLnis para iniciar o download em segund
 ## Build
 
 O workflow `Build APK` gera um APK debug e publica o arquivo como artifact do GitHub Actions.
+
+
+## Integração YTDLnis — perfil isolado do uso normal
+
+Decisão para a Fase 2:
+
+O **Salvar na IA não deve alterar as preferências normais de vídeo do YTDLnis**.
+
+Serão dois fluxos independentes:
+
+### Compartilhar diretamente para YTDLnis
+Continua usando as configurações normais escolhidas pelo usuário no YTDLnis:
+- diretório normal;
+- formato normal;
+- qualidade normal;
+- demais preferências pessoais.
+
+### Compartilhar para Salvar na IA
+O Salvar na IA enviará a URL ao pacote `com.deniscerri.ytdl` usando:
+- `ACTION_SEND`;
+- `TYPE=command`;
+- `BACKGROUND=true`.
+
+O YTDLnis deverá ter um **Command Template dedicado chamado "Salvar na IA"**, marcado como preferido para command downloads.
+
+Configuração planejada desse perfil:
+- pasta dedicada: `Download/Videos IA`;
+- vídeo completo;
+- áudio mantido;
+- resolução máxima de 720p;
+- sem upscale;
+- saída MP4 sempre que possível sem recodificação desnecessária;
+- download em segundo plano.
+
+O YTDLnis atual não permite mais injetar o conteúdo arbitrário do comando pelo Intent. Por isso, o template será configurado uma única vez dentro do YTDLnis e o nosso app apenas selecionará o tipo `command`.
+
+Isso mantém o uso direto do YTDLnis independente do fluxo Salvar na IA.
