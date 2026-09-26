@@ -2,9 +2,9 @@
 
 Miniaplicativo Android local para receber vídeos compartilhados, usar o YTDLnis como downloader e organizar uma fila simples para análise posterior em qualquer IA/app.
 
-## v0.3.0 — IA local experimental
+## v0.3.3 — Pré-análise local + handoff para IA externa
 
-Esta versão mantém o fluxo já validado e adiciona funções experimentais que **compilaram, mas ainda precisam de teste no aparelho**:
+Esta versão mantém o fluxo já validado e consolida a IA local como **pré-análise automática de apoio**, sem substituir a IA externa:
 
 - recebe URL via menu **Compartilhar**;
 - chama o YTDLnis diretamente em `TYPE=command` + `BACKGROUND=true`;
@@ -17,7 +17,8 @@ Esta versão mantém o fluxo já validado e adiciona funções experimentais que
 - renomeia com código curto + título do arquivo;
 - sequência de códigos: `1..9 → A1..A9 → B1..B9 → ...`;
 - mostra fila de pendentes;
-- botão **Mandar para análise** copia/prepara o texto e abre o compartilhamento genérico do Android;
+- botão **Mandar para análise** prepara código, título, pré-análise local, arquivo, link original e um prompt curto para a IA externa;
+- botão **Ver vídeo** abre o MP4 local para conferir exatamente o arquivo que será analisado;
 - botão **Marcar como enviado** remove o vídeo de `Download_Videos IA` e o guarda em uma lixeira privada do próprio app;
 - a lixeira não aparece no explorador/seletor de arquivos, retém o vídeo por até 7 dias e permite restaurar ou excluir imediatamente;
 - itens com mais de 7 dias são apagados quando o app volta a ser executado;
@@ -35,7 +36,7 @@ Essa autorização é necessária porque o Android não compartilha automaticame
 
 ## Fluxo da beta
 
-`Instagram/TikTok → Compartilhar → Salvar na IA → YTDLnis baixa em segundo plano → Salvar na IA detecta → renomeia → Analisando IA → Pronto → Mandar para análise → Marcar como enviado → Lixeira 7 dias`
+`Instagram/TikTok → Compartilhar → Salvar na IA → YTDLnis baixa em segundo plano → Salvar na IA detecta → renomeia → Analisando IA → Pronto → opcionalmente Ver vídeo → Mandar para análise → escolher IA externa e anexar MP4 → Marcar como enviado → Lixeira 7 dias`
 
 ## Perfil YTDLnis
 
@@ -50,7 +51,7 @@ O perfil **Salvar na IA** deve ser:
 
 ## IA local
 
-A v0.3.0 contém a primeira implementação experimental da IA local automática. O runtime é **LiteRT-LM** e o primeiro modelo escolhido para teste é **Gemma 4 E2B**.
+A IA local foi validada tecnicamente no aparelho como **pré-análise automática de apoio**. O runtime é **LiteRT-LM** e o modelo atual é **Gemma 4 E2B**.
 
 O modelo **não fica dentro do APK**. O aplicativo oferece um download inicial de aproximadamente **2,6 GB**, armazena o modelo na área privada do app e verifica tamanho + SHA-256 antes do primeiro uso. Depois disso, a inferência é local/offline.
 
@@ -58,7 +59,7 @@ Para cada vídeo novo, o app prepara até cinco frames representativos e extrai/
 
 Estados novos: **Analisando IA**, **Aguardando IA**, **Falha na análise** e **Arquivo ausente**. Se a análise falhar, o MP4 permanece disponível e pode ser enviado para uma IA externa normalmente.
 
-**Estado desta função: IMPLEMENTADA / COMPILADA / A TESTAR no aparelho real.**
+**Estado desta função: funcionamento técnico TESTADO no aparelho real como pré-análise local.** Ela gera título + resumo para contextualizar a etapa externa, mas não substitui a análise completa do MP4.
 
 ## Observação da beta
 
@@ -81,3 +82,15 @@ A primeira beta criou uma pasta visível `Lixeira Salvar na IA` dentro de `Downl
 ### v0.3.0 — estado de teste
 
 O GitHub Actions compilou e verificou com sucesso o APK release assinado da v0.3.0. Isso significa **COMPILADO**, não **TESTADO**. O teste real deve começar instalando a v0.3.0 por cima da v0.2.2, depois validar **Arquivo ausente**, baixar o modelo local e usar apenas um vídeo novo para o primeiro teste da análise automática.
+
+
+### v0.3.3 — handoff para análise externa
+
+A v0.3.3 foi **IMPLEMENTADA / COMPILADA / A TESTAR**.
+
+Mudanças:
+- **Ver vídeo** abre o MP4 local antes do envio;
+- **Mandar para análise** leva a pré-análise local como contexto, mas instrui a IA externa a confirmar, corrigir e complementar usando o vídeo completo;
+- o prompt final pede que, quando houver acesso ao Notion, a análise seja salva em **Análises de Vídeos**, criando uma nova subpágina para cada vídeo.
+
+A página **Análises de Vídeos** já foi criada no Notion para centralizar os resultados. O app continua sem ficar preso ao ChatGPT: qualquer IA/app compatível pode receber o texto; a etapa de salvar no Notion só pode ser executada por uma IA que tenha acesso ao workspace.
