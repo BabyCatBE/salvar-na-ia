@@ -2,6 +2,8 @@ package com.babycatbe.salvarnaia;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.DownloadManager;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -15,6 +17,8 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
@@ -56,7 +60,24 @@ public class MainActivity extends Activity {
     private TextView folderText;
     private TextView pendingTab;
     private TextView trashTab;
+    private TextView aiStatusText;
+    private TextView aiAction;
     private boolean showingTrash = false;
+    private volatile boolean reconcilingMissingFiles = false;
+
+    private final Handler uiHandler = new Handler(Looper.getMainLooper());
+    private final Runnable aiDownloadPoller = new Runnable() {
+        @Override
+        public void run() {
+            if (aiStatusText == null) return;
+            updateAiCard();
+            LocalAiModelManager.DownloadState state =
+                    LocalAiModelManager.getDownloadState(MainActivity.this);
+            if (state.isActive()) {
+                uiHandler.postDelayed(this, 1500L);
+            }
+        }
+    };
 
     private AppStore store;
 
@@ -73,6 +94,21 @@ public class MainActivity extends Activity {
         super.onResume();
         refresh();
         purgeExpiredTrashAsync();
+        reconcileMissingFilesAsync();
+
+        if (LocalAiModelManager.isModelDownloaded(this) &&
+                !store.getAiSetupRequired().isEmpty()) {
+            startMonitorService();
+        }
+
+        uiHandler.removeCallbacks(aiDownloadPoller);
+        uiHandler.post(aiDownloadPoller);
+    }
+
+    @Override
+    protected void onPause() {
+        uiHandler.removeCallbacks(aiDownloadPoller);
+        super.onPause();
     }
 
     private void configureBars() {
@@ -158,6 +194,37 @@ public class MainActivity extends Activity {
         folderCardP.bottomMargin = dp(16);
         root.addView(folderCard, folderCardP);
 
+        LinearLayout aiCard = card();
+        aiCard.addView(label("IA LOCAL"));
+
+        aiStatusText = text("", 16, true);
+        aiStatusText.setTextColor(TEXT);
+        LinearLayout.LayoutParams aiStatusP = matchWrap();
+        aiStatusP.topMargin = dp(8);
+        aiCard.addView(aiStatusText, aiStatusP);
+
+        TextView aiHint = text(
+                "Todo vídeo novo será analisado automaticamente no aparelho. " +
+                        "O modelo é baixado uma vez e depois funciona local/offline.",
+                13,
+                false
+        );
+        aiHint.setTextColor(MUTED);
+        aiHint.setLineSpacing(dp(2), 1f);
+        LinearLayout.LayoutParams aiHintP = matchWrap();
+        aiHintP.topMargin = dp(6);
+        aiCard.addView(aiHint, aiHintP);
+
+        aiAction = actionButton("Baixar modelo da IA (~2,6 GB)", false);
+        aiAction.setOnClickListener(v -> startModelDownload());
+        LinearLayout.LayoutParams aiActionP = matchWrap();
+        aiActionP.topMargin = dp(14);
+        aiCard.addView(aiAction, aiActionP);
+
+        LinearLayout.LayoutParams aiCardP = matchWrap();
+        aiCardP.bottomMargin = dp(16);
+        root.addView(aiCard, aiCardP);
+
         LinearLayout tabs = new LinearLayout(this);
         tabs.setOrientation(LinearLayout.HORIZONTAL);
         tabs.setWeightSum(2f);
@@ -193,16 +260,6 @@ public class MainActivity extends Activity {
         listContainer.setOrientation(LinearLayout.VERTICAL);
         root.addView(listContainer, matchWrap());
 
-        TextView localAi = text(
-                "IA local: estrutura preparada, mas a análise de áudio + imagem ainda não está ativada nesta beta.",
-                12,
-                false
-        );
-        localAi.setTextColor(MUTED);
-        LinearLayout.LayoutParams aiP = matchWrap();
-        aiP.topMargin = dp(18);
-        root.addView(localAi, aiP);
-
         setContentView(scroll);
     }
 
@@ -216,6 +273,7 @@ public class MainActivity extends Activity {
             folderText.setTextColor(RED);
         }
 
+        updateAiCard();
         updateTabs();
         renderList();
     }
@@ -295,6 +353,15 @@ public class MainActivity extends Activity {
             card.addView(file, fileP);
         }
 
+        if (item.summary != null && !item.summary.isEmpty()) {
+            TextView summary = text(item.summary, 14, false);
+            summary.setTextColor(TEXT);
+            summary.setLineSpacing(dp(2), 1f);
+            LinearLayout.LayoutParams summaryP = matchWrap();
+            summaryP.topMargin = dp(10);
+            card.addView(summary, summaryP);
+        }
+
         TextView url = text(item.url, 12, false);
         url.setTextColor(MUTED);
         url.setTextIsSelectable(true);
@@ -302,32 +369,82 @@ public class MainActivity extends Activity {
         urlP.topMargin = dp(8);
         card.addView(url, urlP);
 
-        if (AppStore.STATUS_ERROR.equals(item.status) && item.error != null && !item.error.isEmpty()) {
-            TextView error = text(item.error, 13, true);
-            error.setTextColor(RED);
-            LinearLayout.LayoutParams errP = matchWrap();
-            errP.topMargin = dp(8);
-            card.addView(error, errP);
+        if (AppStore.STATUS_ERROR.equals(item.status) &&
+                item.error != null &&
+                !item.error.isEmpty()) {
+            addErrorText(card, item.error);
 
-            TextView retry = actionButton("Tentar novamente", false);
+            TextView retry = actionButton("Tentar download novamente", false);
             retry.setOnClickListener(v -> retry(item));
             LinearLayout.LayoutParams retryP = matchWrap();
             retryP.topMargin = dp(14);
             card.addView(retry, retryP);
         }
 
-        if (AppStore.STATUS_READY.equals(item.status)) {
-            TextView send = actionButton("Mandar para análise", true);
-            send.setOnClickListener(v -> sendForAnalysis(item));
-            LinearLayout.LayoutParams sendP = matchWrap();
-            sendP.topMargin = dp(14);
-            card.addView(send, sendP);
+        if (AppStore.STATUS_FILE_MISSING.equals(item.status)) {
+            addErrorText(
+                    card,
+                    "Arquivo ausente: o registro existe, mas o MP4 não foi encontrado."
+            );
 
-            TextView done = actionButton("Marcar como enviado", false);
-            done.setOnClickListener(v -> markSent(item));
-            LinearLayout.LayoutParams doneP = matchWrap();
-            doneP.topMargin = dp(8);
-            card.addView(done, doneP);
+            TextView retry = actionButton("Baixar novamente", true);
+            retry.setOnClickListener(v -> retry(item));
+            LinearLayout.LayoutParams retryP = matchWrap();
+            retryP.topMargin = dp(14);
+            card.addView(retry, retryP);
+
+            TextView remove = actionButton("Remover registro", false);
+            remove.setTextColor(RED);
+            remove.setOnClickListener(v -> confirmRemoveMissing(item));
+            LinearLayout.LayoutParams removeP = matchWrap();
+            removeP.topMargin = dp(8);
+            card.addView(remove, removeP);
+        }
+
+        if (AppStore.STATUS_AI_SETUP_REQUIRED.equals(item.status)) {
+            TextView info = text(
+                    "O download terminou. Falta instalar o modelo da IA local uma única vez.",
+                    13,
+                    true
+            );
+            info.setTextColor(AMBER);
+            LinearLayout.LayoutParams infoP = matchWrap();
+            infoP.topMargin = dp(8);
+            card.addView(info, infoP);
+
+            if (!LocalAiModelManager.isModelDownloaded(this)) {
+                TextView downloadAi = actionButton(
+                        "Baixar modelo da IA (~2,6 GB)",
+                        false
+                );
+                downloadAi.setOnClickListener(v -> startModelDownload());
+                LinearLayout.LayoutParams downloadAiP = matchWrap();
+                downloadAiP.topMargin = dp(14);
+                card.addView(downloadAi, downloadAiP);
+            }
+
+            addSendOnly(card, item, "Mandar para análise mesmo assim");
+        }
+
+        if (AppStore.STATUS_ANALYSIS_ERROR.equals(item.status)) {
+            addErrorText(
+                    card,
+                    item.error == null || item.error.isEmpty()
+                            ? "A IA local não conseguiu concluir a análise"
+                            : item.error
+            );
+
+            TextView retryAi = actionButton("Tentar análise novamente", false);
+            retryAi.setOnClickListener(v -> retryAnalysis(item));
+            LinearLayout.LayoutParams retryAiP = matchWrap();
+            retryAiP.topMargin = dp(14);
+            card.addView(retryAi, retryAiP);
+
+            addSendOnly(card, item, "Mandar para análise mesmo assim");
+        }
+
+        if (AppStore.STATUS_READY.equals(item.status)) {
+            addSendAndDone(card, item);
         }
 
         return card;
@@ -378,10 +495,207 @@ public class MainActivity extends Activity {
         if (AppStore.STATUS_READY.equals(status)) {
             return chip("Pronto", GREEN_SOFT, GREEN);
         }
+        if (AppStore.STATUS_ANALYZING.equals(status)) {
+            return chip("Analisando IA", AMBER_SOFT, AMBER);
+        }
+        if (AppStore.STATUS_AI_SETUP_REQUIRED.equals(status)) {
+            return chip("Aguardando IA", AMBER_SOFT, AMBER);
+        }
+        if (AppStore.STATUS_FILE_MISSING.equals(status)) {
+            return chip("Arquivo ausente", RED_SOFT, RED);
+        }
+        if (AppStore.STATUS_ANALYSIS_ERROR.equals(status)) {
+            return chip("Falha na análise", RED_SOFT, RED);
+        }
         if (AppStore.STATUS_ERROR.equals(status)) {
             return chip("Erro", RED_SOFT, RED);
         }
         return chip("Baixando", AMBER_SOFT, AMBER);
+    }
+
+    private void updateAiCard() {
+        if (aiStatusText == null || aiAction == null) return;
+
+        if (LocalAiModelManager.isModelReady(this)) {
+            aiStatusText.setText(LocalAiModelManager.MODEL_NAME + " ✓ • local/offline");
+            aiStatusText.setTextColor(GREEN);
+            aiAction.setVisibility(View.GONE);
+            return;
+        }
+
+        if (LocalAiModelManager.isModelDownloaded(this)) {
+            aiStatusText.setText(
+                    LocalAiModelManager.MODEL_NAME +
+                            " baixado • será verificado no primeiro uso"
+            );
+            aiStatusText.setTextColor(AMBER);
+            aiAction.setVisibility(View.GONE);
+            return;
+        }
+
+        LocalAiModelManager.DownloadState state =
+                LocalAiModelManager.getDownloadState(this);
+
+        if (state.isActive()) {
+            int percent = state.percent();
+            aiStatusText.setText(
+                    percent >= 0
+                            ? "Baixando " + LocalAiModelManager.MODEL_NAME +
+                            " • " + percent + "%"
+                            : "Baixando " + LocalAiModelManager.MODEL_NAME + "…"
+            );
+            aiStatusText.setTextColor(AMBER);
+            aiAction.setVisibility(View.GONE);
+            return;
+        }
+
+        if (state.isFailed()) {
+            aiStatusText.setText("Falha ao baixar o modelo da IA local");
+            aiStatusText.setTextColor(RED);
+            aiAction.setText("Tentar baixar novamente (~2,6 GB)");
+            aiAction.setVisibility(View.VISIBLE);
+            return;
+        }
+
+        aiStatusText.setText(
+                "Modelo não instalado • " + LocalAiModelManager.humanSize()
+        );
+        aiStatusText.setTextColor(MUTED);
+        aiAction.setText("Baixar modelo da IA (~2,6 GB)");
+        aiAction.setVisibility(View.VISIBLE);
+    }
+
+    private void startModelDownload() {
+        try {
+            if (LocalAiModelManager.isModelDownloaded(this)) {
+                Toast.makeText(
+                        this,
+                        "O modelo já foi baixado",
+                        Toast.LENGTH_SHORT
+                ).show();
+                startMonitorService();
+                updateAiCard();
+                return;
+            }
+
+            LocalAiModelManager.startDownload(this);
+            Toast.makeText(
+                    this,
+                    "Download da IA local iniciado • ~2,6 GB",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            updateAiCard();
+            uiHandler.removeCallbacks(aiDownloadPoller);
+            uiHandler.post(aiDownloadPoller);
+        } catch (Exception e) {
+            Toast.makeText(
+                    this,
+                    "Não foi possível iniciar o download do modelo",
+                    Toast.LENGTH_LONG
+            ).show();
+            updateAiCard();
+        }
+    }
+
+    private void addErrorText(LinearLayout card, String message) {
+        TextView error = text(message, 13, true);
+        error.setTextColor(RED);
+        LinearLayout.LayoutParams errP = matchWrap();
+        errP.topMargin = dp(8);
+        card.addView(error, errP);
+    }
+
+    private void addSendOnly(
+            LinearLayout card,
+            AppStore.Item item,
+            String label
+    ) {
+        TextView send = actionButton(label, true);
+        send.setOnClickListener(v -> sendForAnalysis(item));
+        LinearLayout.LayoutParams sendP = matchWrap();
+        sendP.topMargin = dp(10);
+        card.addView(send, sendP);
+    }
+
+    private void addSendAndDone(LinearLayout card, AppStore.Item item) {
+        TextView send = actionButton("Mandar para análise", true);
+        send.setOnClickListener(v -> sendForAnalysis(item));
+        LinearLayout.LayoutParams sendP = matchWrap();
+        sendP.topMargin = dp(14);
+        card.addView(send, sendP);
+
+        TextView done = actionButton("Marcar como enviado", false);
+        done.setOnClickListener(v -> markSent(item));
+        LinearLayout.LayoutParams doneP = matchWrap();
+        doneP.topMargin = dp(8);
+        card.addView(done, doneP);
+    }
+
+    private void retryAnalysis(AppStore.Item item) {
+        if (item.fileUri == null ||
+                item.fileUri.isEmpty() ||
+                !FolderManager.exists(this, Uri.parse(item.fileUri))) {
+            store.markFileMissing(item.id);
+            refresh();
+            return;
+        }
+
+        if (!LocalAiModelManager.isModelDownloaded(this)) {
+            store.markAiSetupRequired(
+                    item.id,
+                    item.fileUri,
+                    item.fileName,
+                    item.title
+            );
+            startModelDownload();
+            refresh();
+            return;
+        }
+
+        store.markAnalyzing(item.id);
+        startMonitorService();
+        refresh();
+    }
+
+    private void reconcileMissingFilesAsync() {
+        if (reconcilingMissingFiles) return;
+        reconcilingMissingFiles = true;
+
+        io.execute(() -> {
+            boolean changed = false;
+            try {
+                for (AppStore.Item item : store.getExpectedPhysicalFiles()) {
+                    if (item.fileUri == null ||
+                            item.fileUri.isEmpty() ||
+                            !FolderManager.exists(this, Uri.parse(item.fileUri))) {
+                        store.markFileMissing(item.id);
+                        changed = true;
+                    }
+                }
+            } finally {
+                reconcilingMissingFiles = false;
+            }
+
+            if (changed) {
+                runOnUiThread(this::refresh);
+            }
+        });
+    }
+
+    private void confirmRemoveMissing(AppStore.Item item) {
+        new AlertDialog.Builder(this)
+                .setTitle("Remover este registro?")
+                .setMessage(
+                        "O MP4 já não foi encontrado. " +
+                                "Isso remove apenas o registro da lista."
+                )
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton("Remover", (dialog, which) -> {
+                    store.deleteRow(item.id);
+                    refresh();
+                })
+                .show();
     }
 
     private void chooseFolder() {

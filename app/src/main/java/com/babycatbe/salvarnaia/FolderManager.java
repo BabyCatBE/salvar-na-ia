@@ -218,6 +218,34 @@ public class FolderManager {
         }
     }
 
+    public static boolean exists(Context context, Uri uri) {
+        if (uri == null) return false;
+
+        if ("file".equalsIgnoreCase(uri.getScheme())) {
+            String path = uri.getPath();
+            return path != null && new File(path).isFile();
+        }
+
+        try (Cursor c = context.getContentResolver().query(
+                uri,
+                new String[]{
+                        DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                        DocumentsContract.Document.COLUMN_SIZE
+                },
+                null,
+                null,
+                null
+        )) {
+            return c != null && c.moveToFirst();
+        } catch (Exception ignored) {
+            try (InputStream in = context.getContentResolver().openInputStream(uri)) {
+                return in != null;
+            } catch (Exception ignoredAgain) {
+                return false;
+            }
+        }
+    }
+
     public static String getDisplayName(Context context, Uri uri) {
         if (uri == null) return "";
 

@@ -14,6 +14,10 @@ import java.util.Set;
 public class AppStore extends SQLiteOpenHelper {
 
     public static final String STATUS_DOWNLOADING = "DOWNLOADING";
+    public static final String STATUS_ANALYZING = "ANALYZING";
+    public static final String STATUS_AI_SETUP_REQUIRED = "AI_SETUP_REQUIRED";
+    public static final String STATUS_ANALYSIS_ERROR = "ANALYSIS_ERROR";
+    public static final String STATUS_FILE_MISSING = "FILE_MISSING";
     public static final String STATUS_READY = "READY";
     public static final String STATUS_ERROR = "ERROR";
     public static final String STATUS_TRASHED = "TRASHED";
@@ -69,13 +73,8 @@ public class AppStore extends SQLiteOpenHelper {
 
     public synchronized Item get(long id) {
         try (Cursor c = getReadableDatabase().query(
-                "items",
-                null,
-                "id=?",
-                new String[]{String.valueOf(id)},
-                null,
-                null,
-                null
+                "items", null, "id=?", new String[]{String.valueOf(id)},
+                null, null, null
         )) {
             if (c.moveToFirst()) return fromCursor(c);
         }
@@ -84,25 +83,46 @@ public class AppStore extends SQLiteOpenHelper {
 
     public synchronized List<Item> getPending() {
         return query(
-                "status IN (?,?,?)",
-                new String[]{STATUS_DOWNLOADING, STATUS_READY, STATUS_ERROR},
+                "status IN (?,?,?,?,?,?,?)",
+                new String[]{
+                        STATUS_DOWNLOADING,
+                        STATUS_ANALYZING,
+                        STATUS_AI_SETUP_REQUIRED,
+                        STATUS_ANALYSIS_ERROR,
+                        STATUS_FILE_MISSING,
+                        STATUS_READY,
+                        STATUS_ERROR
+                },
                 "created_at DESC"
         );
     }
 
     public synchronized List<Item> getTrash() {
-        return query(
-                "status=?",
-                new String[]{STATUS_TRASHED},
-                "trash_at DESC"
-        );
+        return query("status=?", new String[]{STATUS_TRASHED}, "trash_at DESC");
     }
 
     public synchronized List<Item> getDownloading() {
+        return query("status=?", new String[]{STATUS_DOWNLOADING}, "updated_at ASC");
+    }
+
+    public synchronized List<Item> getAnalyzing() {
+        return query("status=?", new String[]{STATUS_ANALYZING}, "updated_at ASC");
+    }
+
+    public synchronized List<Item> getAiSetupRequired() {
+        return query("status=?", new String[]{STATUS_AI_SETUP_REQUIRED}, "updated_at ASC");
+    }
+
+    public synchronized List<Item> getExpectedPhysicalFiles() {
         return query(
-                "status=?",
-                new String[]{STATUS_DOWNLOADING},
-                "updated_at ASC"
+                "status IN (?,?,?,?)",
+                new String[]{
+                        STATUS_READY,
+                        STATUS_ANALYZING,
+                        STATUS_AI_SETUP_REQUIRED,
+                        STATUS_ANALYSIS_ERROR
+                },
+                "created_at ASC"
         );
     }
 
@@ -113,6 +133,72 @@ public class AppStore extends SQLiteOpenHelper {
         values.put("file_name", fileName == null ? "" : fileName);
         values.put("title", title == null ? "" : title);
         values.put("error", "");
+        values.put("updated_at", System.currentTimeMillis());
+        getWritableDatabase().update("items", values, "id=?", new String[]{String.valueOf(id)});
+    }
+
+    public synchronized void markAnalyzing(
+            long id,
+            String fileUri,
+            String fileName,
+            String provisionalTitle
+    ) {
+        ContentValues values = new ContentValues();
+        values.put("status", STATUS_ANALYZING);
+        values.put("file_uri", fileUri == null ? "" : fileUri);
+        values.put("file_name", fileName == null ? "" : fileName);
+        values.put("title", provisionalTitle == null ? "" : provisionalTitle);
+        values.put("error", "");
+        values.put("updated_at", System.currentTimeMillis());
+        getWritableDatabase().update("items", values, "id=?", new String[]{String.valueOf(id)});
+    }
+
+    public synchronized void markAnalyzing(long id) {
+        ContentValues values = new ContentValues();
+        values.put("status", STATUS_ANALYZING);
+        values.put("error", "");
+        values.put("updated_at", System.currentTimeMillis());
+        getWritableDatabase().update("items", values, "id=?", new String[]{String.valueOf(id)});
+    }
+
+    public synchronized void markAiSetupRequired(
+            long id,
+            String fileUri,
+            String fileName,
+            String provisionalTitle
+    ) {
+        ContentValues values = new ContentValues();
+        values.put("status", STATUS_AI_SETUP_REQUIRED);
+        values.put("file_uri", fileUri == null ? "" : fileUri);
+        values.put("file_name", fileName == null ? "" : fileName);
+        values.put("title", provisionalTitle == null ? "" : provisionalTitle);
+        values.put("error", "Baixe o modelo da IA local uma vez para concluir a análise");
+        values.put("updated_at", System.currentTimeMillis());
+        getWritableDatabase().update("items", values, "id=?", new String[]{String.valueOf(id)});
+    }
+
+    public synchronized void markAnalysisReady(long id, String title, String summary) {
+        ContentValues values = new ContentValues();
+        values.put("status", STATUS_READY);
+        values.put("title", title == null ? "" : title);
+        values.put("summary", summary == null ? "" : summary);
+        values.put("error", "");
+        values.put("updated_at", System.currentTimeMillis());
+        getWritableDatabase().update("items", values, "id=?", new String[]{String.valueOf(id)});
+    }
+
+    public synchronized void markAnalysisError(long id, String message) {
+        ContentValues values = new ContentValues();
+        values.put("status", STATUS_ANALYSIS_ERROR);
+        values.put("error", message == null ? "A análise local não foi concluída" : message);
+        values.put("updated_at", System.currentTimeMillis());
+        getWritableDatabase().update("items", values, "id=?", new String[]{String.valueOf(id)});
+    }
+
+    public synchronized void markFileMissing(long id) {
+        ContentValues values = new ContentValues();
+        values.put("status", STATUS_FILE_MISSING);
+        values.put("error", "O arquivo MP4 não foi encontrado na pasta conectada");
         values.put("updated_at", System.currentTimeMillis());
         getWritableDatabase().update("items", values, "id=?", new String[]{String.valueOf(id)});
     }
@@ -128,7 +214,12 @@ public class AppStore extends SQLiteOpenHelper {
     public synchronized void markDownloading(long id) {
         ContentValues values = new ContentValues();
         values.put("status", STATUS_DOWNLOADING);
+        values.put("title", "");
+        values.put("summary", "");
+        values.put("file_uri", "");
+        values.put("file_name", "");
         values.put("error", "");
+        values.put("trash_at", 0);
         values.put("updated_at", System.currentTimeMillis());
         getWritableDatabase().update("items", values, "id=?", new String[]{String.valueOf(id)});
     }
@@ -161,15 +252,13 @@ public class AppStore extends SQLiteOpenHelper {
         try (Cursor c = getReadableDatabase().query(
                 "items",
                 new String[]{"file_uri"},
-                "file_uri<>''",
-                null,
+                "file_uri<>'' AND status<>?",
+                new String[]{STATUS_FILE_MISSING},
                 null,
                 null,
                 null
         )) {
-            while (c.moveToNext()) {
-                uris.add(c.getString(0));
-            }
+            while (c.moveToNext()) uris.add(c.getString(0));
         }
         return uris;
     }
@@ -177,13 +266,7 @@ public class AppStore extends SQLiteOpenHelper {
     private synchronized List<Item> query(String selection, String[] args, String orderBy) {
         List<Item> result = new ArrayList<>();
         try (Cursor c = getReadableDatabase().query(
-                "items",
-                null,
-                selection,
-                args,
-                null,
-                null,
-                orderBy
+                "items", null, selection, args, null, null, orderBy
         )) {
             while (c.moveToNext()) result.add(fromCursor(c));
         }

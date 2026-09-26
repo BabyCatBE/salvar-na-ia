@@ -21,8 +21,8 @@ android {
         applicationId = "com.babycatbe.salvarnaia"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.2.2"
+        versionCode = 6
+        versionName = "0.3.0"
     }
 
     signingConfigs {
@@ -49,4 +49,8 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+}
+
+dependencies {
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.17.1")
 }

@@ -34,7 +34,7 @@ public class DownloadMonitorService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        startForeground(NOTIFICATION_ID, buildNotification("Acompanhando downloads…"));
+        startForeground(NOTIFICATION_ID, buildNotification("Acompanhando vídeos…"));
 
         if (running.compareAndSet(false, true)) {
             executor.execute(this::monitorLoop);
@@ -45,72 +45,199 @@ public class DownloadMonitorService extends Service {
 
     private void monitorLoop() {
         AppStore store = new AppStore(this);
+        LocalAiEngine aiEngine = null;
 
         try {
             while (true) {
                 List<AppStore.Item> downloading = store.getDownloading();
-                if (downloading.isEmpty()) break;
 
-                if (!FolderManager.hasFolderAccess(this)) {
-                    for (AppStore.Item item : downloading) {
-                        store.markError(item.id, "Acesso à pasta foi perdido");
+                if (!downloading.isEmpty()) {
+                    if (!FolderManager.hasFolderAccess(this)) {
+                        for (AppStore.Item item : downloading) {
+                            store.markError(item.id, "Acesso à pasta foi perdido");
+                        }
+                    } else {
+                        processDownloads(store, downloading);
+                    }
+                }
+
+                List<AppStore.Item> waitingForAi = store.getAiSetupRequired();
+                if (!waitingForAi.isEmpty() &&
+                        LocalAiModelManager.isModelDownloaded(this)) {
+                    for (AppStore.Item item : waitingForAi) {
+                        if (item.fileUri == null ||
+                                item.fileUri.isEmpty() ||
+                                !FolderManager.exists(this, Uri.parse(item.fileUri))) {
+                            store.markFileMissing(item.id);
+                        } else {
+                            store.markAnalyzing(item.id);
+                        }
+                    }
+                }
+
+                List<AppStore.Item> analyzing = store.getAnalyzing();
+                if (!analyzing.isEmpty()) {
+                    if (!LocalAiModelManager.isModelDownloaded(this)) {
+                        for (AppStore.Item item : analyzing) {
+                            store.markAiSetupRequired(
+                                    item.id,
+                                    item.fileUri,
+                                    item.fileName,
+                                    item.title
+                            );
+                        }
+                    } else if (!LocalAiModelManager.ensureVerified(this)) {
+                        for (AppStore.Item item : analyzing) {
+                            store.markAnalysisError(
+                                    item.id,
+                                    "O modelo da IA local está incompleto ou inválido. Baixe novamente."
+                            );
+                        }
+                    } else {
+                        updateNotification("Preparando IA local…");
+
+                        if (aiEngine == null) {
+                            try {
+                                aiEngine = new LocalAiEngine(this);
+                            } catch (Exception e) {
+                                for (AppStore.Item item : analyzing) {
+                                    store.markAnalysisError(
+                                            item.id,
+                                            "Não foi possível iniciar a IA local neste aparelho"
+                                    );
+                                }
+                                analyzing.clear();
+                            }
+                        }
+
+                        if (aiEngine != null) {
+                            for (AppStore.Item item : analyzing) {
+                                if (item.fileUri == null ||
+                                        item.fileUri.isEmpty() ||
+                                        !FolderManager.exists(this, Uri.parse(item.fileUri))) {
+                                    store.markFileMissing(item.id);
+                                    continue;
+                                }
+
+                                updateNotification(
+                                        "Analisando vídeo " + item.code + " com IA local…"
+                                );
+
+                                try {
+                                    LocalAiEngine.AnalysisResult result =
+                                            aiEngine.analyze(
+                                                    Uri.parse(item.fileUri),
+                                                    item.title
+                                            );
+                                    store.markAnalysisReady(
+                                            item.id,
+                                            result.title,
+                                            result.summary
+                                    );
+                                } catch (Exception e) {
+                                    store.markAnalysisError(
+                                            item.id,
+                                            "A IA local não conseguiu concluir a análise"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+
+                int downloadingLeft = store.getDownloading().size();
+                int analyzingLeft = store.getAnalyzing().size();
+                int setupLeft = store.getAiSetupRequired().size();
+
+                if (downloadingLeft == 0 && analyzingLeft == 0) {
+                    if (setupLeft > 0 &&
+                            !LocalAiModelManager.isModelDownloaded(this)) {
+                        updateNotification("Modelo da IA local precisa ser baixado");
+                    } else {
+                        updateNotification("Vídeos finalizados");
                     }
                     break;
                 }
 
-                List<FolderManager.Entry> files = FolderManager.listRootVideos(this);
-                Set<String> used = new HashSet<>(store.getUsedFileUris());
+                updateNotification(
+                        analyzingLeft > 0
+                                ? "Analisando com IA local…"
+                                : (downloadingLeft == 1
+                                ? "1 vídeo baixando…"
+                                : downloadingLeft + " vídeos baixando…")
+                );
 
-                for (AppStore.Item item : downloading) {
-                    FolderManager.Entry candidate = null;
-
-                    for (FolderManager.Entry file : files) {
-                        String key = file.uri.toString();
-                        if (used.contains(key)) continue;
-                        if (file.lastModified + 5000L < item.updatedAt) continue;
-                        candidate = file;
+                if (downloadingLeft > 0) {
+                    try {
+                        Thread.sleep(2500L);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
                         break;
                     }
-
-                    if (candidate != null) {
-                        String title = FolderManager.titleFromFileName(candidate.name);
-                        String ext = FolderManager.extensionOf(candidate.name);
-                        String wantedName = FolderManager.safeFileName(item.code, title, ext);
-                        Uri finalUri = FolderManager.rename(this, candidate.uri, wantedName);
-                        String actualName = FolderManager.getDisplayName(this, finalUri);
-                        if (actualName == null || actualName.isEmpty()) actualName = wantedName;
-
-                        store.markReady(
-                                item.id,
-                                finalUri.toString(),
-                                actualName,
-                                title
-                        );
-
-                        used.add(finalUri.toString());
-                    } else if (System.currentTimeMillis() - item.updatedAt > TIMEOUT_MS) {
-                        store.markError(item.id, "O download não apareceu na pasta em até 15 minutos");
-                    }
-                }
-
-                int left = store.getDownloading().size();
-                updateNotification(left == 0
-                        ? "Downloads finalizados"
-                        : (left == 1 ? "1 vídeo baixando…" : left + " vídeos baixando…"));
-
-                if (left == 0) break;
-
-                try {
-                    Thread.sleep(2500L);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
                 }
             }
         } finally {
+            if (aiEngine != null) {
+                try {
+                    aiEngine.close();
+                } catch (Exception ignored) {
+                }
+            }
             running.set(false);
             stopForeground(STOP_FOREGROUND_REMOVE);
             stopSelf();
+        }
+    }
+
+    private void processDownloads(
+            AppStore store,
+            List<AppStore.Item> downloading
+    ) {
+        List<FolderManager.Entry> files = FolderManager.listRootVideos(this);
+        Set<String> used = new HashSet<>(store.getUsedFileUris());
+
+        for (AppStore.Item item : downloading) {
+            FolderManager.Entry candidate = null;
+
+            for (FolderManager.Entry file : files) {
+                String key = file.uri.toString();
+                if (used.contains(key)) continue;
+                if (file.lastModified + 5000L < item.updatedAt) continue;
+                candidate = file;
+                break;
+            }
+
+            if (candidate != null) {
+                String title = FolderManager.titleFromFileName(candidate.name);
+                String ext = FolderManager.extensionOf(candidate.name);
+                String wantedName = FolderManager.safeFileName(item.code, title, ext);
+                Uri finalUri = FolderManager.rename(this, candidate.uri, wantedName);
+                String actualName = FolderManager.getDisplayName(this, finalUri);
+                if (actualName == null || actualName.isEmpty()) actualName = wantedName;
+
+                if (LocalAiModelManager.isModelDownloaded(this)) {
+                    store.markAnalyzing(
+                            item.id,
+                            finalUri.toString(),
+                            actualName,
+                            title
+                    );
+                } else {
+                    store.markAiSetupRequired(
+                            item.id,
+                            finalUri.toString(),
+                            actualName,
+                            title
+                    );
+                }
+
+                used.add(finalUri.toString());
+            } else if (System.currentTimeMillis() - item.updatedAt > TIMEOUT_MS) {
+                store.markError(
+                        item.id,
+                        "O download não apareceu na pasta em até 15 minutos"
+                );
+            }
         }
     }
 
@@ -118,10 +245,10 @@ public class DownloadMonitorService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
-                    "Downloads do Salvar na IA",
+                    "Downloads e IA local",
                     NotificationManager.IMPORTANCE_LOW
             );
-            channel.setDescription("Acompanha os vídeos enviados ao YTDLnis");
+            channel.setDescription("Acompanha downloads e a pré-análise local dos vídeos");
             getSystemService(NotificationManager.class).createNotificationChannel(channel);
         }
     }
@@ -150,7 +277,8 @@ public class DownloadMonitorService extends Service {
     }
 
     private void updateNotification(String text) {
-        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        NotificationManager manager =
+                (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         manager.notify(NOTIFICATION_ID, buildNotification(text));
     }
 
