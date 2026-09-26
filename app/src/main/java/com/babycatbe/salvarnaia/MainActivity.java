@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DownloadManager;
+import android.app.Dialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -13,6 +14,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageInfo;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
@@ -1028,11 +1030,44 @@ public class MainActivity extends Activity {
     }
 
     private void showSettings() {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setCanceledOnTouchOutside(true);
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(20), dp(20), dp(20), dp(16));
+        panel.setBackground(rounded(SURFACE, BORDER, 26));
+
+        TextView dialogTitle = text("Configurações", 22, true);
+        dialogTitle.setTextColor(TEXT);
+        panel.addView(dialogTitle);
+
+        TextView dialogSubtitle = text(
+                "Ajuste o prompt e mantenha o aplicativo atualizado.",
+                13,
+                false
+        );
+        dialogSubtitle.setTextColor(MUTED);
+        LinearLayout.LayoutParams subtitleP = matchWrap();
+        subtitleP.topMargin = dp(5);
+        subtitleP.bottomMargin = dp(16);
+        panel.addView(dialogSubtitle, subtitleP);
+
         ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        scroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(20), dp(8), dp(20), dp(8));
-        scroll.addView(content);
+        content.setPadding(0, 0, 0, dp(8));
+        scroll.addView(
+                content,
+                new ScrollView.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+        );
 
         TextView promptTitle = text("Prompt de análise", 16, true);
         promptTitle.setTextColor(TEXT);
@@ -1093,13 +1128,21 @@ public class MainActivity extends Activity {
         TextView updateAction = actionButton("Verificar atualização", false);
         LinearLayout.LayoutParams updateActionP = matchWrap();
         updateActionP.topMargin = dp(10);
+        updateActionP.bottomMargin = dp(4);
         content.addView(updateAction, updateActionP);
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Configurações")
-                .setView(scroll)
-                .setNegativeButton("Fechar", null)
-                .create();
+        LinearLayout.LayoutParams scrollP = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+        );
+        panel.addView(scroll, scrollP);
+
+        TextView close = actionButton("Fechar", false);
+        close.setTextColor(RED);
+        LinearLayout.LayoutParams closeP = matchWrap();
+        closeP.topMargin = dp(12);
+        panel.addView(close, closeP);
 
         savePrompt.setOnClickListener(v -> {
             AppSettings.saveAnalysisPrompt(this, promptInput.getText().toString());
@@ -1112,9 +1155,30 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "Prompt padrão restaurado", Toast.LENGTH_SHORT).show();
         });
 
+        close.setOnClickListener(v -> dialog.dismiss());
+
         configureUpdateControls(updateStatus, updateAction);
 
+        dialog.setContentView(panel);
+
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setDimAmount(0.45f);
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        }
+
         dialog.show();
+
+        window = dialog.getWindow();
+        if (window != null) {
+            int screenWidth = getResources().getDisplayMetrics().widthPixels;
+            int screenHeight = getResources().getDisplayMetrics().heightPixels;
+            window.setLayout(
+                    Math.min(screenWidth - dp(28), dp(560)),
+                    Math.min((int) (screenHeight * 0.86f), dp(760))
+            );
+        }
     }
 
     private void configureUpdateControls(TextView status, TextView action) {
