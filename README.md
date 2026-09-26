@@ -2,9 +2,9 @@
 
 Miniaplicativo Android local para receber vídeos compartilhados, usar o YTDLnis como downloader e organizar uma fila simples para análise posterior em qualquer IA/app.
 
-## v0.2.1 — Beta integrada
+## v0.3.0 — IA local experimental
 
-Esta beta junta as partes já validadas do fluxo:
+Esta versão mantém o fluxo já validado e adiciona funções experimentais que **compilaram, mas ainda precisam de teste no aparelho**:
 
 - recebe URL via menu **Compartilhar**;
 - chama o YTDLnis diretamente em `TYPE=command` + `BACKGROUND=true`;
@@ -20,7 +20,10 @@ Esta beta junta as partes já validadas do fluxo:
 - botão **Mandar para análise** copia/prepara o texto e abre o compartilhamento genérico do Android;
 - botão **Marcar como enviado** remove o vídeo de `Download_Videos IA` e o guarda em uma lixeira privada do próprio app;
 - a lixeira não aparece no explorador/seletor de arquivos, retém o vídeo por até 7 dias e permite restaurar ou excluir imediatamente;
-- itens com mais de 7 dias são apagados quando o app volta a ser executado.
+- itens com mais de 7 dias são apagados quando o app volta a ser executado;
+- detecta registros cujo MP4 físico desapareceu e mostra **Arquivo ausente**;
+- integra uma pré-análise local automática experimental: **Baixando → Analisando IA → Pronto**;
+- gera **título + resumo** com LiteRT-LM + Gemma 4 E2B depois que o modelo local for instalado.
 
 ### Primeira configuração depois de instalar
 
@@ -32,7 +35,7 @@ Essa autorização é necessária porque o Android não compartilha automaticame
 
 ## Fluxo da beta
 
-`Instagram/TikTok → Compartilhar → Salvar na IA → YTDLnis baixa em segundo plano → Salvar na IA detecta → renomeia → Pronto → Mandar para análise → Marcar como enviado → Lixeira 7 dias`
+`Instagram/TikTok → Compartilhar → Salvar na IA → YTDLnis baixa em segundo plano → Salvar na IA detecta → renomeia → Analisando IA → Pronto → Mandar para análise → Marcar como enviado → Lixeira 7 dias`
 
 ## Perfil YTDLnis
 
@@ -47,7 +50,15 @@ O perfil **Salvar na IA** deve ser:
 
 ## IA local
 
-A estrutura de dados já possui título e resumo para receber uma futura pré-análise local. A análise real de vídeo por IA local (imagem + áudio) **ainda não está ativada nesta beta**, porque o modelo/runtime local ainda precisa ser escolhido e testado no aparelho real. O app não inventa um resumo: enquanto isso, usa o título real do arquivo baixado.
+A v0.3.0 contém a primeira implementação experimental da IA local automática. O runtime é **LiteRT-LM** e o primeiro modelo escolhido para teste é **Gemma 4 E2B**.
+
+O modelo **não fica dentro do APK**. O aplicativo oferece um download inicial de aproximadamente **2,6 GB**, armazena o modelo na área privada do app e verifica tamanho + SHA-256 antes do primeiro uso. Depois disso, a inferência é local/offline.
+
+Para cada vídeo novo, o app prepara até cinco frames representativos e extrai/converte até três minutos do áudio para WAV PCM mono de 16 kHz. A IA recebe imagem + áudio e deve gerar pelo menos **título + resumo** em português.
+
+Estados novos: **Analisando IA**, **Aguardando IA**, **Falha na análise** e **Arquivo ausente**. Se a análise falhar, o MP4 permanece disponível e pode ser enviado para uma IA externa normalmente.
+
+**Estado desta função: IMPLEMENTADA / COMPILADA / A TESTAR no aparelho real.**
 
 ## Observação da beta
 
@@ -57,7 +68,7 @@ A associação automática usa a chegada do arquivo novo na pasta exclusiva. Par
 
 O GitHub Actions gera o APK **release assinado** automaticamente. A assinatura usa um keystore permanente reconstruído apenas durante o workflow a partir de **Repository secrets**; o keystore e as senhas não ficam no repositório público. O workflow também verifica a assinatura com `apksigner` antes de publicar o artefato.
 
-A primeira instalação com essa chave exigiu substituir a antiga instalação debug. As próximas versões assinadas com a mesma chave devem poder ser instaladas por cima, preservando os dados locais; essa atualização por cima será validada no próximo APK.
+A primeira instalação com essa chave exigiu substituir a antiga instalação debug. A atualização assinada da v0.2.1 para a v0.2.2 foi **TESTADA/APROVADA**, preservando SQLite e a autorização da pasta.
 
 
 ### Ajuste v0.2.1
@@ -65,3 +76,8 @@ A primeira instalação com essa chave exigiu substituir a antiga instalação d
 A primeira beta criou uma pasta visível `Lixeira Salvar na IA` dentro de `Download_Videos IA`. Isso foi substituído por uma lixeira privada do app, para não poluir a pasta usada na hora de anexar vídeos em outra IA. A restauração também passou a validar a remoção física do arquivo da lixeira antes de atualizar o status do item.
 
 **Teste real da v0.2.1: APROVADO.** Com um vídeo novo, foram validados download automático, status Pronto, arquivo físico na pasta principal, envio para a lixeira privada sem criar pasta visível, restauração física para `Download_Videos IA`, retorno a Pendentes e `Excluir agora` removendo registro e arquivo.
+
+
+### v0.3.0 — estado de teste
+
+O GitHub Actions compilou e verificou com sucesso o APK release assinado da v0.3.0. Isso significa **COMPILADO**, não **TESTADO**. O teste real deve começar instalando a v0.3.0 por cima da v0.2.2, depois validar **Arquivo ausente**, baixar o modelo local e usar apenas um vídeo novo para o primeiro teste da análise automática.
