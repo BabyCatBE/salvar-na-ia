@@ -10,7 +10,8 @@ Aplicativo Android local para receber vídeos compartilhados, usar o YTDLnis com
 **Configurações arredondadas:** TESTADAS / APROVADAS  
 **Retry de Arquivo ausente na v0.4.6:** TESTADO / APROVADO  
 **Prompt editável/restaurável:** TESTADO / APROVADO  
-**Reciclagem de códigos, Esvaziar lixeira e controles rápidos:** A TESTAR
+**Redesign visual da Lixeira:** TESTADO / APROVADO  
+**Controles rápidos, reciclagem de códigos e fluxo destrutivo completo de Esvaziar lixeira:** A TESTAR
 
 A base v0.3.3 permanece **TESTADA/APROVADA** no fluxo completo: download, pré-análise local, Ver vídeo, Mandar para análise, análise externa e salvamento no Notion.
 
@@ -160,7 +161,7 @@ O retry de **Arquivo ausente** foi validado na v0.4.6: com o MP4 já existente n
 
 O prompt editável/restaurável foi validado: alteração manual foi salva e **Restaurar prompt padrão** voltou corretamente ao texto original.
 
-A v0.4.6 seguirá em uso normal. Os controles rápidos de copiar link/cancelar, a reciclagem do menor código livre e **Esvaziar lixeira** permanecem **PENDENTES DE TESTE específico** e serão validados conforme aparecerem naturalmente no uso real.
+A v0.4.7 seguirá em uso normal. O redesign visual da Lixeira já foi **TESTADO/APROVADO**. Os controles rápidos de copiar link/cancelar, a reciclagem do menor código livre e o fluxo destrutivo completo de **Esvaziar lixeira** permanecem **PENDENTES DE TESTE específico** e serão validados conforme aparecerem naturalmente no uso real.
 
 
 ## Redesign da Lixeira — v0.4.7
