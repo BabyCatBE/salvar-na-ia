@@ -47,8 +47,7 @@ public final class LocalAiEngine implements AutoCloseable {
                     cpu,
                     8192,
                     5,
-                    context.getCacheDir().getAbsolutePath(),
-                    null
+                    context.getCacheDir().getAbsolutePath()
             );
             engine = new Engine(gpuConfig);
             engine.initialize();
@@ -65,8 +64,7 @@ public final class LocalAiEngine implements AutoCloseable {
                 cpu,
                 8192,
                 5,
-                context.getCacheDir().getAbsolutePath(),
-                null
+                context.getCacheDir().getAbsolutePath()
         );
         engine = new Engine(cpuConfig);
         engine.initialize();
