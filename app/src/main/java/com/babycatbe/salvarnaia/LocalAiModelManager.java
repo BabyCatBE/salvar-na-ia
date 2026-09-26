@@ -42,11 +42,18 @@ public final class LocalAiModelManager {
 
     public static boolean isModelDownloaded(Context context) {
         File file = getModelFile(context);
-        return file.isFile() && file.length() == MODEL_SIZE_BYTES;
+        if (!file.isFile() || file.length() != MODEL_SIZE_BYTES) return false;
+
+        if (isModelReady(context)) return true;
+
+        DownloadState state = getDownloadState(context);
+        return state.isSuccessful();
     }
 
     public static boolean isModelReady(Context context) {
-        if (!isModelDownloaded(context)) return false;
+        File file = getModelFile(context);
+        if (!file.isFile() || file.length() != MODEL_SIZE_BYTES) return false;
+
         String verified = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .getString(KEY_VERIFIED_SHA, "");
         return MODEL_SHA256.equalsIgnoreCase(verified);
@@ -54,6 +61,7 @@ public final class LocalAiModelManager {
 
     public static synchronized boolean ensureVerified(Context context) {
         if (isModelReady(context)) return true;
+        if (!isModelDownloaded(context)) return false;
 
         File model = getModelFile(context);
         if (!model.isFile() || model.length() != MODEL_SIZE_BYTES) return false;
@@ -207,6 +215,10 @@ public final class LocalAiModelManager {
 
         public boolean isFailed() {
             return status == DownloadManager.STATUS_FAILED;
+        }
+
+        public boolean isSuccessful() {
+            return status == DownloadManager.STATUS_SUCCESSFUL;
         }
 
         public int percent() {
