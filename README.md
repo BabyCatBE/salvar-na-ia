@@ -9,7 +9,8 @@ Aplicativo Android local para receber vídeos compartilhados, usar o YTDLnis com
 **Atualizador interno:** TESTADO / APROVADO  
 **Configurações arredondadas:** TESTADAS / APROVADAS  
 **Retry de Arquivo ausente na v0.4.6:** TESTADO / APROVADO  
-**Salvar/restaurar prompt, reciclagem de códigos, Esvaziar lixeira e controles rápidos:** A TESTAR
+**Prompt editável/restaurável:** TESTADO / APROVADO  
+**Reciclagem de códigos, Esvaziar lixeira e controles rápidos:** A TESTAR
 
 A base v0.3.3 permanece **TESTADA/APROVADA** no fluxo completo: download, pré-análise local, Ver vídeo, Mandar para análise, análise externa e salvamento no Notion.
 
@@ -157,4 +158,6 @@ O atualizador interno já foi validado no aparelho no fluxo **v0.4.1 → v0.4.6*
 
 O retry de **Arquivo ausente** foi validado na v0.4.6: com o MP4 já existente na pasta, o app localizou e reaproveitou o arquivo e retomou o processamento sem criar outro download.
 
-Agora validar salvar/restaurar prompt, controles rápidos de copiar link/cancelar, reciclagem do menor código livre e **Esvaziar lixeira**.
+O prompt editável/restaurável foi validado: alteração manual foi salva e **Restaurar prompt padrão** voltou corretamente ao texto original.
+
+Agora validar os controles rápidos de copiar link/cancelar, a reciclagem do menor código livre e **Esvaziar lixeira**.
