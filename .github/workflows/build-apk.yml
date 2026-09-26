@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    name: Build v0.2.1 debug APK
+    name: Build v0.2.1 signed APK
     runs-on: ubuntu-latest
 
     steps:
@@ -39,12 +39,25 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
-      - name: Build debug APK
-        run: gradle :app:assembleDebug --stacktrace
+      - name: Restore signing keystore
+        shell: bash
+        run: |
+          printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/salvar-na-ia.jks"
+
+      - name: Build signed release APK
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/salvar-na-ia.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: gradle :app:assembleRelease --stacktrace
+
+      - name: Verify APK signature
+        run: "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Salvar-na-IA-v0.2.1-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Salvar-na-IA-v0.2.1-signed
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
