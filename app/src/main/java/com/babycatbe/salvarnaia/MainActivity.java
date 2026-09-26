@@ -5,10 +5,12 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.app.Dialog;
+import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageInfo;
@@ -87,6 +89,16 @@ public class MainActivity extends Activity {
     };
 
     private AppStore store;
+    private boolean monitorReceiverRegistered = false;
+
+    private final BroadcastReceiver monitorReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (DownloadMonitorService.ACTION_STATE_CHANGED.equals(intent.getAction())) {
+                refresh();
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -96,6 +108,27 @@ public class MainActivity extends Activity {
         configureBars();
         buildUi();
         handleUpdateIntent(getIntent());
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        if (!monitorReceiverRegistered) {
+            IntentFilter filter =
+                    new IntentFilter(DownloadMonitorService.ACTION_STATE_CHANGED);
+
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(
+                        monitorReceiver,
+                        filter,
+                        Context.RECEIVER_NOT_EXPORTED
+                );
+            } else {
+                registerReceiver(monitorReceiver, filter);
+            }
+            monitorReceiverRegistered = true;
+        }
     }
 
     @Override
@@ -120,6 +153,15 @@ public class MainActivity extends Activity {
     protected void onPause() {
         uiHandler.removeCallbacks(aiDownloadPoller);
         super.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        if (monitorReceiverRegistered) {
+            unregisterReceiver(monitorReceiver);
+            monitorReceiverRegistered = false;
+        }
+        super.onStop();
     }
 
     @Override

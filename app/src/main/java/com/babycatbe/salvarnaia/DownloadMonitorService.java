@@ -19,6 +19,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class DownloadMonitorService extends Service {
 
+    public static final String ACTION_STATE_CHANGED =
+            "com.babycatbe.salvarnaia.STATE_CHANGED";
+
     private static final String CHANNEL_ID = "salvar_na_ia_downloads";
     private static final int NOTIFICATION_ID = 41;
     private static final long TIMEOUT_MS = 15L * 60L * 1000L;
@@ -145,6 +148,8 @@ public class DownloadMonitorService extends Service {
                     }
                 }
 
+                notifyUiChanged();
+
                 int downloadingLeft = store.getDownloading().size();
                 int analyzingLeft = store.getAnalyzing().size();
                 int setupLeft = store.getAiSetupRequired().size();
@@ -197,15 +202,7 @@ public class DownloadMonitorService extends Service {
         Set<String> used = new HashSet<>(store.getUsedFileUris());
 
         for (AppStore.Item item : downloading) {
-            FolderManager.Entry candidate = null;
-
-            for (FolderManager.Entry file : files) {
-                String key = file.uri.toString();
-                if (used.contains(key)) continue;
-                if (file.lastModified + 5000L < item.updatedAt) continue;
-                candidate = file;
-                break;
-            }
+            FolderManager.Entry candidate = findCandidateFor(item, files, used);
 
             if (candidate != null) {
                 String title = FolderManager.titleFromFileName(candidate.name);
@@ -239,6 +236,71 @@ public class DownloadMonitorService extends Service {
                 );
             }
         }
+    }
+
+    private FolderManager.Entry findCandidateFor(
+            AppStore.Item item,
+            List<FolderManager.Entry> files,
+            Set<String> used
+    ) {
+        String sourceToken = sourceTokenFromUrl(item.url);
+
+        if (!sourceToken.isEmpty()) {
+            for (FolderManager.Entry file : files) {
+                String key = file.uri.toString();
+                if (used.contains(key)) continue;
+                if (file.size == 0) continue;
+
+                String name = file.name == null ? "" : file.name;
+                if (name.toLowerCase().contains(sourceToken.toLowerCase())) {
+                    return file;
+                }
+            }
+        }
+
+        for (FolderManager.Entry file : files) {
+            String key = file.uri.toString();
+            if (used.contains(key)) continue;
+            if (file.size == 0) continue;
+
+            // Alguns provedores SAF retornam lastModified=0. Nessa situação,
+            // o arquivo ainda pode ser o download correto e não deve ser ignorado.
+            if (file.lastModified > 0 && file.lastModified + 5000L < item.updatedAt) {
+                continue;
+            }
+            return file;
+        }
+
+        return null;
+    }
+
+    private String sourceTokenFromUrl(String rawUrl) {
+        if (rawUrl == null || rawUrl.isEmpty()) return "";
+
+        try {
+            Uri uri = Uri.parse(rawUrl);
+            List<String> segments = uri.getPathSegments();
+
+            for (int i = segments.size() - 1; i >= 0; i--) {
+                String segment = segments.get(i);
+                if (segment == null || segment.isEmpty()) continue;
+                if ("reel".equalsIgnoreCase(segment) ||
+                        "p".equalsIgnoreCase(segment) ||
+                        "video".equalsIgnoreCase(segment)) {
+                    continue;
+                }
+                if (segment.length() >= 6) return segment;
+            }
+        } catch (Exception ignored) {
+        }
+
+        return "";
+    }
+
+    private void notifyUiChanged() {
+        Intent changed = new Intent(ACTION_STATE_CHANGED);
+        changed.setPackage(getPackageName());
+        sendBroadcast(changed);
     }
 
     private void createChannel() {
