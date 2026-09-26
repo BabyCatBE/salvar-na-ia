@@ -1,101 +1,166 @@
 # Salvar na IA
 
-Miniaplicativo Android local para receber vídeos compartilhados, usar o YTDLnis como downloader e organizar uma fila simples para análise posterior em qualquer IA/app.
+Aplicativo Android local para receber vídeos compartilhados, usar o YTDLnis como downloader, fazer uma pré-análise local com IA e organizar o envio do MP4 para qualquer IA/app compatível.
 
-## v0.3.3 — Pré-análise local + handoff para IA externa
+## Estado atual
 
-Esta versão mantém o fluxo já validado e consolida a IA local como **pré-análise automática de apoio**, sem substituir a IA externa:
+**Código atual:** v0.4.1  
+**v0.4.0:** IMPLEMENTADA / COMPILADA — pacote de novas funções  
+**v0.4.1:** IMPLEMENTADA / COMPILADA — mesma base funcional, criada como alvo para validar o atualizador interno  
+**Teste no aparelho dessas novas funções:** A FAZER
 
-- recebe URL via menu **Compartilhar**;
-- chama o YTDLnis diretamente em `TYPE=command` + `BACKGROUND=true`;
-- usa o Command Template **Salvar na IA** configurado no YTDLnis;
-- perfil YTDLnis validado com `-t mp4 --no-playlist`;
-- qualidade automática;
-- pasta exclusiva `Download_Videos IA`;
-- monitora a pasta escolhida pelo usuário via Storage Access Framework;
-- associa o arquivo baixado ao item;
-- renomeia com código curto + título do arquivo;
-- sequência de códigos: `1..9 → A1..A9 → B1..B9 → ...`;
-- mostra fila de pendentes;
-- botão **Mandar para análise** prepara código, título, pré-análise local, arquivo, link original e um prompt curto para a IA externa;
-- botão **Ver vídeo** abre o MP4 local para conferir exatamente o arquivo que será analisado;
-- botão **Marcar como enviado** remove o vídeo de `Download_Videos IA` e o guarda em uma lixeira privada do próprio app;
-- a lixeira não aparece no explorador/seletor de arquivos, retém o vídeo por até 7 dias e permite restaurar ou excluir imediatamente;
-- itens com mais de 7 dias são apagados quando o app volta a ser executado;
-- detecta registros cujo MP4 físico desapareceu e mostra **Arquivo ausente**;
-- integra uma pré-análise local automática experimental: **Baixando → Analisando IA → Pronto**;
-- gera **título + resumo** com LiteRT-LM + Gemma 4 E2B depois que o modelo local for instalado.
+A base v0.3.3 permanece **TESTADA/APROVADA** no fluxo completo: download, pré-análise local, Ver vídeo, Mandar para análise, análise externa e salvamento no Notion.
 
-### Primeira configuração depois de instalar
+## Fluxo principal
 
-Abra o app e toque em **Conectar / trocar pasta**. Escolha exatamente a pasta já usada pelo YTDLnis:
+`Instagram/TikTok → Compartilhar → Salvar na IA → YTDLnis baixa → app associa/renomeia → Gemma faz pré-análise → Pronto → Ver vídeo ou Mandar para análise → anexar MP4 na IA externa → salvar análise no Notion → Marcar como enviado → Lixeira privada por 7 dias`
+
+## IA local
+
+- Runtime: **LiteRT-LM**
+- Modelo atual: **Gemma 4 E2B**
+- Modelo baixado separadamente (~2,6 GB), não embutido no APK.
+- Inferência local/offline depois do download.
+- O app prepara até cinco frames representativos e até três minutos de áudio em WAV PCM mono 16 kHz.
+- A saída local é usada como **pré-análise de apoio**: título + resumo.
+- A IA externa continua responsável pela análise completa do MP4.
+
+Estados relevantes: **Baixando**, **Analisando IA**, **Aguardando IA**, **Pronto**, **Falha na análise** e **Arquivo ausente**.
+
+## Mandar para análise
+
+O app prepara automaticamente:
+- código;
+- título;
+- pré-análise local;
+- nome do arquivo;
+- link original;
+- prompt final configurável.
+
+O MP4 ainda é anexado manualmente pelo usuário na IA escolhida.
+
+O prompt padrão manda a IA externa analisar o vídeo completo, usar a pré-análise apenas como contexto e salvar o resultado diretamente como uma nova subpágina filha da página raiz **Análises de Vídeos** no Notion. Ele também diz explicitamente para não criar uma análise dentro de outra análise.
+
+## Configurações — v0.4.0
+
+A tela principal ganhou um botão **⚙ Configurações**.
+
+Dentro dela:
+- edição manual do **Prompt de análise**;
+- **Salvar prompt**;
+- **Restaurar prompt padrão**;
+- versão instalada;
+- **Verificar atualização**;
+- download e instalação de uma nova versão publicada em GitHub Releases.
+
+O Android continua exigindo confirmação do usuário para instalar o APK. Na primeira atualização interna, o sistema também pode pedir autorização para **Instalar apps desconhecidos** a partir do Salvar na IA.
+
+## Atualizador interno
+
+O app consulta:
+
+`https://api.github.com/repos/BabyCatBE/salvar-na-ia/releases/latest`
+
+Quando encontra uma versão maior:
+1. oferece **Baixar e instalar**;
+2. usa o DownloadManager do Android;
+3. ao terminar, mostra uma notificação de atualização pronta;
+4. ao tocar, abre o instalador oficial do Android;
+5. a assinatura permanente permite instalar por cima preservando os dados.
+
+O GitHub Actions agora publica automaticamente cada versão compilada também em **GitHub Releases**, além do artifact do workflow.
+
+## Reciclagem de códigos — v0.4.0
+
+Os códigos visíveis não crescem indefinidamente.
+
+Sequência:
+`1..9 → A1..A9 → B1..B9 → ...`
+
+Regras:
+- enquanto o registro existir, o código permanece reservado;
+- isso inclui itens na lixeira de 7 dias;
+- **Marcar como enviado** não libera o código;
+- **Excluir agora**, limpeza automática após 7 dias ou **Esvaziar lixeira** removem definitivamente o registro e liberam o código;
+- todo vídeo novo recebe o **menor código livre**;
+- o `id` interno do SQLite continua autoincremental e nunca é reciclado.
+
+## Lixeira
+
+- privada do app;
+- não aparece dentro de `Download_Videos IA`;
+- retenção de até 7 dias;
+- permite **Restaurar**;
+- permite **Excluir agora**;
+- v0.4.0 adiciona **Esvaziar lixeira**, com confirmação explícita;
+- registros só são removidos quando o arquivo físico foi apagado ou já não existe.
+
+## Arquivo ausente
+
+Se um registro disser que o vídeo existe mas o MP4 físico tiver desaparecido, o app mostra **Arquivo ausente** em vez de manter um falso estado Pronto.
+
+Ações:
+- **Baixar novamente**;
+- **Remover registro**.
+
+## Pasta dos vídeos
+
+O YTDLnis e o Salvar na IA usam a pasta:
 
 `Download_Videos IA`
 
-Essa autorização é necessária porque o Android não compartilha automaticamente com o Salvar na IA a permissão que foi concedida ao YTDLnis.
-
-## Fluxo da beta
-
-`Instagram/TikTok → Compartilhar → Salvar na IA → YTDLnis baixa em segundo plano → Salvar na IA detecta → renomeia → Analisando IA → Pronto → opcionalmente Ver vídeo → Mandar para análise → escolher IA externa e anexar MP4 → Marcar como enviado → Lixeira 7 dias`
-
-## Perfil YTDLnis
-
-O uso normal do YTDLnis continua independente.
-
-O perfil **Salvar na IA** deve ser:
+Perfil YTDLnis aprovado:
 - Modelo de comando preferido: ligado;
 - Comando extra: desligado;
 - URL Regex: vazio;
 - Pasta de comandos personalizados: `Download_Videos IA`;
-- Comando: `-t mp4 --no-playlist`.
+- comando: `-t mp4 --no-playlist`;
+- qualidade: automática.
 
-## IA local
+## Build e assinatura
 
-A IA local foi validada tecnicamente no aparelho como **pré-análise automática de apoio**. O runtime é **LiteRT-LM** e o modelo atual é **Gemma 4 E2B**.
+Configuração atual:
+- package: `com.babycatbe.salvarnaia`
+- compileSdk 36
+- targetSdk 36
+- minSdk 26
+- Java 21
+- Gradle 9.6
+- assinatura Android permanente via GitHub Repository Secrets.
 
-O modelo **não fica dentro do APK**. O aplicativo oferece um download inicial de aproximadamente **2,6 GB**, armazena o modelo na área privada do app e verifica tamanho + SHA-256 antes do primeiro uso. Depois disso, a inferência é local/offline.
+O keystore e as senhas não ficam no repositório público.
 
-Para cada vídeo novo, o app prepara até cinco frames representativos e extrai/converte até três minutos do áudio para WAV PCM mono de 16 kHz. A IA recebe imagem + áudio e deve gerar pelo menos **título + resumo** em português.
+O workflow:
+1. recompõe temporariamente o keystore;
+2. compila o APK release;
+3. verifica a assinatura com `apksigner`;
+4. publica artifact do workflow;
+5. publica/atualiza uma **GitHub Release** com o APK assinado.
 
-Estados novos: **Analisando IA**, **Aguardando IA**, **Falha na análise** e **Arquivo ausente**. Se a análise falhar, o MP4 permanece disponível e pode ser enviado para uma IA externa normalmente.
+## Testes já aprovados
 
-**Estado desta função: funcionamento técnico TESTADO no aparelho real como pré-análise local.** Ela gera título + resumo para contextualizar a etapa externa, mas não substitui a análise completa do MP4.
+- lixeira privada e restauração física;
+- exclusão definitiva individual;
+- atualização assinada por cima preservando SQLite e autorização da pasta;
+- detecção de **Arquivo ausente**;
+- download e verificação do Gemma;
+- pré-análise automática local;
+- **Ver vídeo** abrindo o MP4 local;
+- **Mandar para análise** com contexto + prompt;
+- ChatGPT analisando o MP4 completo e criando a subpágina **7 — Organização** diretamente em **Análises de Vídeos** no Notion.
 
-## Observação da beta
+## Próximo teste
 
-A associação automática usa a chegada do arquivo novo na pasta exclusiva. Para o teste inicial, evite iniciar manualmente outro download para a mesma pasta enquanto um item do Salvar na IA estiver baixando.
+Instalar manualmente a **v0.4.0** por cima da v0.3.3 uma última vez e validar, nesta ordem:
 
-## Build
+1. dados e modelo local preservados;
+2. ⚙ Configurações e prompt editável;
+3. reciclagem de código após exclusão definitiva;
+4. **Esvaziar lixeira**;
+5. **Verificar atualização** encontrando a v0.4.1;
+6. download interno da v0.4.1;
+7. abertura do instalador do Android;
+8. instalação da v0.4.1 por cima;
+9. dados e modelo preservados após a atualização interna.
 
-O GitHub Actions gera o APK **release assinado** automaticamente. A assinatura usa um keystore permanente reconstruído apenas durante o workflow a partir de **Repository secrets**; o keystore e as senhas não ficam no repositório público. O workflow também verifica a assinatura com `apksigner` antes de publicar o artefato.
-
-A primeira instalação com essa chave exigiu substituir a antiga instalação debug. A atualização assinada da v0.2.1 para a v0.2.2 foi **TESTADA/APROVADA**, preservando SQLite e a autorização da pasta.
-
-
-### Ajuste v0.2.1
-
-A primeira beta criou uma pasta visível `Lixeira Salvar na IA` dentro de `Download_Videos IA`. Isso foi substituído por uma lixeira privada do app, para não poluir a pasta usada na hora de anexar vídeos em outra IA. A restauração também passou a validar a remoção física do arquivo da lixeira antes de atualizar o status do item.
-
-**Teste real da v0.2.1: APROVADO.** Com um vídeo novo, foram validados download automático, status Pronto, arquivo físico na pasta principal, envio para a lixeira privada sem criar pasta visível, restauração física para `Download_Videos IA`, retorno a Pendentes e `Excluir agora` removendo registro e arquivo.
-
-
-### v0.3.0 — estado de teste
-
-O GitHub Actions compilou e verificou com sucesso o APK release assinado da v0.3.0. Isso significa **COMPILADO**, não **TESTADO**. O teste real deve começar instalando a v0.3.0 por cima da v0.2.2, depois validar **Arquivo ausente**, baixar o modelo local e usar apenas um vídeo novo para o primeiro teste da análise automática.
-
-
-### v0.3.3 — handoff para análise externa
-
-A v0.3.3 foi **IMPLEMENTADA / COMPILADA / TESTADA/APROVADA no fluxo completo**.
-
-Mudanças:
-- **Ver vídeo** abre o MP4 local antes do envio — **TESTADO/APROVADO**;
-- **Mandar para análise** leva a pré-análise local como contexto e instrui a IA externa a confirmar, corrigir e complementar usando o vídeo completo — compartilhamento do texto **TESTADO**;
-- o prompt final pede que, quando houver acesso ao Notion, a análise seja salva em **Análises de Vídeos**, criando uma nova subpágina para cada vídeo — **TESTADO** com o vídeo 7.
-
-A página **Análises de Vídeos** já foi criada no Notion para centralizar os resultados. O app continua sem ficar preso ao ChatGPT: qualquer IA/app compatível pode receber o texto; a etapa de salvar no Notion só pode ser executada por uma IA que tenha acesso ao workspace.
-
-
-#### Teste completo da v0.3.3
-
-**APROVADO.** No vídeo 7, o fluxo real foi: **Mandar para análise → ChatGPT → MP4 anexado manualmente → análise completa do vídeo → criação da subpágina `7 — Organização` dentro de `Análises de Vídeos` no Notion**. A subpágina foi verificada no workspace após o envio.
+Só depois desses testes as funções novas devem ser marcadas como TESTADAS/APROVADAS.
