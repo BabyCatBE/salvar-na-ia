@@ -4,8 +4,9 @@ Aplicativo Android local para receber vídeos compartilhados, usar o YTDLnis com
 
 ## Estado atual
 
-**Código atual:** v0.4.7  
+**Código atual:** v0.4.8  
 **Versão instalada no aparelho:** v0.4.7  
+**v0.4.8:** COMPILADA / PUBLICADA / A TESTAR  
 **Atualizador interno:** TESTADO / APROVADO  
 **Configurações arredondadas:** TESTADAS / APROVADAS  
 **Retry de Arquivo ausente na v0.4.6:** TESTADO / APROVADO  
@@ -176,3 +177,20 @@ Mudança visual somente, sem alterar a lógica de restauração/exclusão:
 - novo Dialog próprio do app com cantos arredondados, ícone de lixeira, texto centralizado, **Cancelar** contornado e **Excluir tudo** vermelho.
 
 Estado: **INSTALADA / TESTADA / APROVADA**. O redesign foi validado no aparelho com o modal de confirmação aberto; a lógica de exclusão/restauração permaneceu inalterada.
+
+
+## Padronização dos diálogos — v0.4.8
+
+Foi feita uma varredura completa das caixas de diálogo criadas pelo próprio aplicativo.
+
+Resultado da varredura:
+- existiam duas confirmações ainda usando o `AlertDialog` padrão do Android: **Cancelar no Salvar na IA?** e **Remover este registro?**;
+- **Esvaziar lixeira** já usava o diálogo arredondado próprio do app;
+- **Configurações** já usava interface própria arredondada;
+- não foram encontrados outros diálogos próprios do aplicativo fora desses pontos.
+
+A v0.4.8 remove o uso restante de `AlertDialog` e cria um componente único de confirmação do Salvar na IA. Agora **Cancelar item**, **Remover registro** e **Esvaziar lixeira** compartilham o mesmo padrão visual: fundo arredondado, ícone em destaque, título e mensagem centralizados, botão secundário contornado e ação principal vermelha.
+
+A lógica das ações foi preservada; a mudança é de apresentação e reutilização do componente.
+
+Estado: **IMPLEMENTADA / COMPILADA / PUBLICADA / A TESTAR NO APARELHO**.
