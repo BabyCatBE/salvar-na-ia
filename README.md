@@ -55,9 +55,13 @@ A associação automática usa a chegada do arquivo novo na pasta exclusiva. Par
 
 ## Build
 
-O GitHub Actions gera o APK debug automaticamente.
+O GitHub Actions gera o APK **release assinado** automaticamente. A assinatura usa um keystore permanente reconstruído apenas durante o workflow a partir de **Repository secrets**; o keystore e as senhas não ficam no repositório público. O workflow também verifica a assinatura com `apksigner` antes de publicar o artefato.
+
+A primeira instalação com essa chave exigiu substituir a antiga instalação debug. As próximas versões assinadas com a mesma chave devem poder ser instaladas por cima, preservando os dados locais; essa atualização por cima será validada no próximo APK.
 
 
 ### Ajuste v0.2.1
 
 A primeira beta criou uma pasta visível `Lixeira Salvar na IA` dentro de `Download_Videos IA`. Isso foi substituído por uma lixeira privada do app, para não poluir a pasta usada na hora de anexar vídeos em outra IA. A restauração também passou a validar a remoção física do arquivo da lixeira antes de atualizar o status do item.
+
+**Teste real da v0.2.1: APROVADO.** Com um vídeo novo, foram validados download automático, status Pronto, arquivo físico na pasta principal, envio para a lixeira privada sem criar pasta visível, restauração física para `Download_Videos IA`, retorno a Pendentes e `Excluir agora` removendo registro e arquivo.
