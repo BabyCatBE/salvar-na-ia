@@ -1,32 +1,50 @@
 # Salvar na IA
 
-Miniaplicativo Android local para facilitar o envio de vídeos do Instagram/TikTok para um fluxo de análise no ChatGPT.
+Miniaplicativo Android local, simples e sem custo recorrente para capturar vídeos compartilhados do Instagram/TikTok e organizar uma fila para análise posterior por IA.
 
-## Versão atual: v0.1 — Share Target
+## Versão atual: v0.1.1 — Share Target + refinamento visual
 
-Esta versão implementa **somente a Fase 1**:
+A Fase 1 está validada no aparelho real:
 
 - aparece no menu **Compartilhar** como **Salvar na IA**;
-- recebe texto/URL compartilhado por outros apps;
-- extrai e salva localmente a URL recebida;
-- registra quantidade e horário do último recebimento;
-- fecha imediatamente após receber o compartilhamento;
-- permite abrir o app manualmente para conferir o último link recebido.
+- recebe texto/URL compartilhado pelo Instagram/TikTok;
+- extrai e salva localmente a URL;
+- registra quantidade e horário;
+- fecha imediatamente depois do compartilhamento;
+- permite abrir o app para conferir o último link;
+- interface com cards arredondados, melhor hierarquia visual e transições leves.
 
-Ainda **não** integra YTDLnis e **não** automatiza o ChatGPT. Essas etapas só serão iniciadas depois que a Fase 1 for testada no celular.
+## Decisões de UX para as próximas fases
 
-## Teste da v0.1
+O app não ficará preso a um único serviço de IA.
 
-1. Instale o APK gerado pelo GitHub Actions.
-2. Abra Instagram ou TikTok.
-3. Em um vídeo, toque em **Compartilhar**.
-4. Escolha **Salvar na IA**.
-5. O app deve apenas mostrar uma confirmação curta e desaparecer.
-6. Abra **Salvar na IA** manualmente.
-7. Confira se o link aparece em **Último link recebido**.
+O botão de saída será chamado:
+
+**Mandar para análise**
+
+Esse botão deverá preparar/copiar o título, resumo, link original e nome exato do arquivo para que o usuário possa usar ChatGPT, Gemini, Claude ou outro app.
+
+### Organização dos vídeos
+
+- Todos os vídeos prontos ficam na mesma pasta.
+- Depois da análise local, o MP4 será renomeado com um código curto + título.
+- Sequência planejada dos códigos:
+  `1 ... 9` → `A1 ... A9` → `B1 ... B9` → ... → `Z1 ... Z9` → `AA1 ... AA9` ...
+- Exemplo:
+  `A3 - Como automatizar estoque com IA.mp4`
+
+### Ciclo planejado
+
+`Compartilhado → Baixando → IA local analisando → Pronto → Mandar para análise → Marcar como enviado → Lixeira por 7 dias → Exclusão definitiva`
+
+Ao marcar como enviado, o item sai da fila principal e o arquivo deixa a pasta de pendentes. Ele permanece recuperável por 7 dias na lixeira local antes da exclusão definitiva.
+
+## Próxima fase
+
+**Fase 2 — YTDLnis**
+
+O app deverá enviar a URL recebida ao YTDLnis para iniciar o download em segundo plano. A Fase 3 ficará responsável por associar com segurança o MP4 baixado ao item correspondente.
 
 ## Build
 
-O workflow `Build APK` gera um APK debug e o publica como artifact do GitHub Actions.
-
-Projeto pensado para ser local, simples e sem custo recorrente.
+O workflow `Build APK` gera um APK debug e publica o arquivo como artifact do GitHub Actions.
