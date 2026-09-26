@@ -4,10 +4,12 @@ Aplicativo Android local para receber vídeos compartilhados, usar o YTDLnis com
 
 ## Estado atual
 
-**Código atual:** v0.4.1  
-**v0.4.0:** IMPLEMENTADA / COMPILADA — pacote de novas funções  
-**v0.4.1:** IMPLEMENTADA / COMPILADA — mesma base funcional, criada como alvo para validar o atualizador interno  
-**Teste no aparelho dessas novas funções:** A FAZER
+**Código atual:** v0.4.6  
+**Versão instalada no aparelho:** v0.4.6  
+**Atualizador interno:** TESTADO / APROVADO  
+**Configurações arredondadas:** TESTADAS / APROVADAS  
+**Retry de Arquivo ausente na v0.4.6:** A TESTAR  
+**Salvar/restaurar prompt, reciclagem de códigos, Esvaziar lixeira e controles rápidos:** A TESTAR
 
 A base v0.3.3 permanece **TESTADA/APROVADA** no fluxo completo: download, pré-análise local, Ver vídeo, Mandar para análise, análise externa e salvamento no Notion.
 
@@ -151,16 +153,8 @@ O workflow:
 
 ## Próximo teste
 
-Instalar manualmente a **v0.4.0** por cima da v0.3.3 uma última vez e validar, nesta ordem:
+O atualizador interno já foi validado no aparelho no fluxo **v0.4.1 → v0.4.6**, preservando pasta, Gemma e registros. O visual arredondado das Configurações também foi aprovado.
 
-1. dados e modelo local preservados;
-2. ⚙ Configurações e prompt editável;
-3. reciclagem de código após exclusão definitiva;
-4. **Esvaziar lixeira**;
-5. **Verificar atualização** encontrando a v0.4.1;
-6. download interno da v0.4.1;
-7. abertura do instalador do Android;
-8. instalação da v0.4.1 por cima;
-9. dados e modelo preservados após a atualização interna.
+Agora testar o item A1 que está em **Erro** e cujo MP4 já existe fisicamente na pasta. Na v0.4.6, tocar **Tentar download novamente**. O esperado é o app localizar o arquivo existente pelo identificador da URL, mostrar **“MP4 já encontrado • retomando análise”** e seguir para **Analisando IA → Pronto** sem disparar outro download no YTDLnis.
 
-Só depois desses testes as funções novas devem ser marcadas como TESTADAS/APROVADAS.
+Depois validar salvar/restaurar prompt, controles rápidos de copiar link/cancelar, reciclagem do menor código livre e **Esvaziar lixeira**.
