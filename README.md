@@ -5,7 +5,7 @@ Aplicativo Android local para receber vídeos compartilhados, usar o YTDLnis com
 ## Estado atual
 
 **Código atual:** v0.4.7  
-**Versão instalada no aparelho:** v0.4.6  
+**Versão instalada no aparelho:** v0.4.7  
 **Atualizador interno:** TESTADO / APROVADO  
 **Configurações arredondadas:** TESTADAS / APROVADAS  
 **Retry de Arquivo ausente na v0.4.6:** TESTADO / APROVADO  
