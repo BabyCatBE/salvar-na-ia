@@ -21,8 +21,8 @@ android {
         applicationId = "com.babycatbe.salvarnaia"
         minSdk = 26
         targetSdk = 36
-        versionCode = 14
-        versionName = "0.4.4"
+        versionCode = 15
+        versionName = "0.4.5"
     }
 
     signingConfigs {
