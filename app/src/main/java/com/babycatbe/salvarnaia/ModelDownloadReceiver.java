@@ -27,10 +27,15 @@ public class ModelDownloadReceiver extends BroadcastReceiver {
             ).show();
 
             Intent service = new Intent(context, DownloadMonitorService.class);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(service);
-            } else {
-                context.startService(service);
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(service);
+                } else {
+                    context.startService(service);
+                }
+            } catch (Exception ignored) {
+                // If Android blocks a background foreground-service start,
+                // MainActivity resumes the pending analysis next time it opens.
             }
         } else {
             Toast.makeText(
