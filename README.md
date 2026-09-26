@@ -86,16 +86,16 @@ O GitHub Actions compilou e verificou com sucesso o APK release assinado da v0.3
 
 ### v0.3.3 — handoff para análise externa
 
-A v0.3.3 foi **IMPLEMENTADA / COMPILADA / TESTADA no aparelho para as mudanças internas**. O fluxo externo completo com uma IA + gravação no Notion ainda está **A VALIDAR**.
+A v0.3.3 foi **IMPLEMENTADA / COMPILADA / TESTADA/APROVADA no fluxo completo**.
 
 Mudanças:
 - **Ver vídeo** abre o MP4 local antes do envio — **TESTADO/APROVADO**;
 - **Mandar para análise** leva a pré-análise local como contexto e instrui a IA externa a confirmar, corrigir e complementar usando o vídeo completo — compartilhamento do texto **TESTADO**;
-- o prompt final pede que, quando houver acesso ao Notion, a análise seja salva em **Análises de Vídeos**, criando uma nova subpágina para cada vídeo.
+- o prompt final pede que, quando houver acesso ao Notion, a análise seja salva em **Análises de Vídeos**, criando uma nova subpágina para cada vídeo — **TESTADO** com o vídeo 7.
 
 A página **Análises de Vídeos** já foi criada no Notion para centralizar os resultados. O app continua sem ficar preso ao ChatGPT: qualquer IA/app compatível pode receber o texto; a etapa de salvar no Notion só pode ser executada por uma IA que tenha acesso ao workspace.
 
 
-#### Próximo teste
+#### Teste completo da v0.3.3
 
-Executar um teste completo com um único vídeo já Pronto: tocar **Mandar para análise**, escolher uma IA com acesso ao Notion, anexar manualmente o MP4, enviar e confirmar se a análise final é salva como nova subpágina dentro de **Análises de Vídeos**. Esse resultado ainda não deve ser marcado como testado antes da confirmação real.
+**APROVADO.** No vídeo 7, o fluxo real foi: **Mandar para análise → ChatGPT → MP4 anexado manualmente → análise completa do vídeo → criação da subpágina `7 — Organização` dentro de `Análises de Vídeos` no Notion**. A subpágina foi verificada no workspace após o envio.
