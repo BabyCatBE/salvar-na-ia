@@ -174,4 +174,4 @@ Mudança visual somente, sem alterar a lógica de restauração/exclusão:
 - confirmação de **Esvaziar lixeira** deixou de usar o AlertDialog padrão do Android;
 - novo Dialog próprio do app com cantos arredondados, ícone de lixeira, texto centralizado, **Cancelar** contornado e **Excluir tudo** vermelho.
 
-Estado: **IMPLEMENTADA / COMPILADA / PUBLICADA / A TESTAR**. Para validar o visual, basta abrir a confirmação e cancelar; não é necessário excluir vídeos úteis.
+Estado: **INSTALADA / TESTADA / APROVADA**. O redesign foi validado no aparelho com o modal de confirmação aberto; a lógica de exclusão/restauração permaneceu inalterada.
