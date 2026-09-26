@@ -2,7 +2,7 @@
 
 Miniaplicativo Android local para receber vídeos compartilhados, usar o YTDLnis como downloader e organizar uma fila simples para análise posterior em qualquer IA/app.
 
-## v0.2.0 — Beta integrada
+## v0.2.1 — Beta integrada
 
 Esta beta junta as partes já validadas do fluxo:
 
@@ -18,8 +18,8 @@ Esta beta junta as partes já validadas do fluxo:
 - sequência de códigos: `1..9 → A1..A9 → B1..B9 → ...`;
 - mostra fila de pendentes;
 - botão **Mandar para análise** copia/prepara o texto e abre o compartilhamento genérico do Android;
-- botão **Marcar como enviado** move o vídeo para uma lixeira própria;
-- lixeira retém o arquivo por até 7 dias e permite restaurar ou excluir imediatamente;
+- botão **Marcar como enviado** remove o vídeo de `Download_Videos IA` e o guarda em uma lixeira privada do próprio app;
+- a lixeira não aparece no explorador/seletor de arquivos, retém o vídeo por até 7 dias e permite restaurar ou excluir imediatamente;
 - itens com mais de 7 dias são apagados quando o app volta a ser executado.
 
 ### Primeira configuração depois de instalar
@@ -56,3 +56,8 @@ A associação automática usa a chegada do arquivo novo na pasta exclusiva. Par
 ## Build
 
 O GitHub Actions gera o APK debug automaticamente.
+
+
+### Ajuste v0.2.1
+
+A primeira beta criou uma pasta visível `Lixeira Salvar na IA` dentro de `Download_Videos IA`. Isso foi substituído por uma lixeira privada do app, para não poluir a pasta usada na hora de anexar vídeos em outra IA. A restauração também passou a validar a remoção física do arquivo da lixeira antes de atualizar o status do item.
