@@ -4,7 +4,7 @@ Aplicativo Android local para receber vídeos compartilhados, usar o YTDLnis com
 
 ## Estado atual
 
-**Código atual:** v0.4.6  
+**Código atual:** v0.4.7  
 **Versão instalada no aparelho:** v0.4.6  
 **Atualizador interno:** TESTADO / APROVADO  
 **Configurações arredondadas:** TESTADAS / APROVADAS  
@@ -161,3 +161,17 @@ O retry de **Arquivo ausente** foi validado na v0.4.6: com o MP4 já existente n
 O prompt editável/restaurável foi validado: alteração manual foi salva e **Restaurar prompt padrão** voltou corretamente ao texto original.
 
 A v0.4.6 seguirá em uso normal. Os controles rápidos de copiar link/cancelar, a reciclagem do menor código livre e **Esvaziar lixeira** permanecem **PENDENTES DE TESTE específico** e serão validados conforme aparecerem naturalmente no uso real.
+
+
+## Redesign da Lixeira — v0.4.7
+
+Mudança visual somente, sem alterar a lógica de restauração/exclusão:
+
+- **Esvaziar lixeira (N)** com tratamento destrutivo em vermelho suave;
+- código dos itens da lixeira em chip vermelho suave;
+- **↻ Restaurar** em ação neutra;
+- **🗑 Excluir agora** em ação destrutiva vermelha;
+- confirmação de **Esvaziar lixeira** deixou de usar o AlertDialog padrão do Android;
+- novo Dialog próprio do app com cantos arredondados, ícone de lixeira, texto centralizado, **Cancelar** contornado e **Excluir tudo** vermelho.
+
+Estado: **IMPLEMENTADA / EM BUILD / A TESTAR**. Para validar o visual, basta abrir a confirmação e cancelar; não é necessário excluir vídeos úteis.
