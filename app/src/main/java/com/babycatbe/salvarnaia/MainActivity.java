@@ -942,43 +942,27 @@ public class MainActivity extends Activity {
     }
 
     private void confirmCancelPending(AppStore.Item item) {
-        boolean downloading = AppStore.STATUS_DOWNLOADING.equals(item.status);
-
-        String message = downloading
-                ? "O item será removido do Salvar na IA. Se o YTDLnis já estiver baixando o vídeo, o download externo pode continuar porque o Salvar na IA não controla a fila interna do YTDLnis. Se já houver um MP4 associado, ele também será apagado."
-                : "O item será removido do Salvar na IA e o MP4 associado será apagado. Essa ação não pode ser desfeita.";
-
         new AlertDialog.Builder(this)
-                .setTitle("Cancelar este item?")
-                .setMessage(message)
+                .setTitle("Cancelar no Salvar na IA?")
+                .setMessage(
+                        "Este item será removido somente do Salvar na IA. " +
+                        "O aplicativo deixará de acompanhar esse processo. " +
+                        "O YTDLnis e qualquer MP4 já baixado não serão alterados."
+                )
                 .setNegativeButton("Voltar", null)
-                .setPositiveButton("Remover", (dialog, which) -> removeTransientItem(item))
+                .setPositiveButton("Cancelar item", (dialog, which) -> removeTransientItem(item))
                 .show();
     }
 
     private void removeTransientItem(AppStore.Item item) {
         io.execute(() -> {
-            boolean canRemoveRecord = true;
+            store.deleteRow(item.id);
 
-            if (item.fileUri != null && !item.fileUri.isEmpty()) {
-                Uri uri = Uri.parse(item.fileUri);
-                if (FolderManager.exists(this, uri)) {
-                    canRemoveRecord = FolderManager.delete(this, uri);
-                }
-            }
-
-            if (canRemoveRecord) {
-                store.deleteRow(item.id);
-            }
-
-            boolean removed = canRemoveRecord;
             runOnUiThread(() -> {
                 Toast.makeText(
                         this,
-                        removed
-                                ? "Item removido"
-                                : "Não foi possível apagar o arquivo associado",
-                        removed ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG
+                        "Item cancelado no Salvar na IA",
+                        Toast.LENGTH_SHORT
                 ).show();
                 refresh();
             });
