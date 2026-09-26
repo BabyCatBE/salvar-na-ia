@@ -447,6 +447,23 @@ public class MainActivity extends Activity {
         statusP.leftMargin = dp(8);
         top.addView(status, statusP);
 
+        if (canShowTransientControls(item)) {
+            View spacer = new View(this);
+            top.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1f));
+
+            TextView copyLink = compactCircleButton("⧉", false);
+            copyLink.setContentDescription("Copiar link");
+            copyLink.setOnClickListener(v -> copyOriginalLink(item));
+            LinearLayout.LayoutParams copyP = new LinearLayout.LayoutParams(dp(38), dp(38));
+            copyP.rightMargin = dp(7);
+            top.addView(copyLink, copyP);
+
+            TextView cancel = compactCircleButton("×", true);
+            cancel.setContentDescription("Cancelar e remover item");
+            cancel.setOnClickListener(v -> confirmCancelPending(item));
+            top.addView(cancel, new LinearLayout.LayoutParams(dp(38), dp(38)));
+        }
+
         card.addView(top);
 
         String titleText = item.title == null || item.title.isEmpty()
@@ -887,6 +904,85 @@ public class MainActivity extends Activity {
                 checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
         }
+    }
+
+    private boolean canShowTransientControls(AppStore.Item item) {
+        return AppStore.STATUS_DOWNLOADING.equals(item.status) ||
+                AppStore.STATUS_ANALYZING.equals(item.status);
+    }
+
+    private TextView compactCircleButton(String value, boolean danger) {
+        TextView view = text(value, 19, true);
+        view.setGravity(Gravity.CENTER);
+        view.setTextColor(danger ? RED : MUTED);
+        view.setBackground(
+                rounded(
+                        danger ? RED_SOFT : Color.rgb(247, 244, 243),
+                        danger ? RED_SOFT : BORDER,
+                        99
+                )
+        );
+        view.setClickable(true);
+        view.setFocusable(true);
+        return view;
+    }
+
+    private void copyOriginalLink(AppStore.Item item) {
+        if (item.url == null || item.url.isEmpty()) {
+            Toast.makeText(this, "Este item não tem link salvo", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        ClipboardManager clipboard =
+                (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        clipboard.setPrimaryClip(
+                ClipData.newPlainText("Link original do vídeo", item.url)
+        );
+        Toast.makeText(this, "Link copiado ✓", Toast.LENGTH_SHORT).show();
+    }
+
+    private void confirmCancelPending(AppStore.Item item) {
+        boolean downloading = AppStore.STATUS_DOWNLOADING.equals(item.status);
+
+        String message = downloading
+                ? "O item será removido do Salvar na IA. Se o YTDLnis já estiver baixando o vídeo, o download externo pode continuar porque o Salvar na IA não controla a fila interna do YTDLnis. Se já houver um MP4 associado, ele também será apagado."
+                : "O item será removido do Salvar na IA e o MP4 associado será apagado. Essa ação não pode ser desfeita.";
+
+        new AlertDialog.Builder(this)
+                .setTitle("Cancelar este item?")
+                .setMessage(message)
+                .setNegativeButton("Voltar", null)
+                .setPositiveButton("Remover", (dialog, which) -> removeTransientItem(item))
+                .show();
+    }
+
+    private void removeTransientItem(AppStore.Item item) {
+        io.execute(() -> {
+            boolean canRemoveRecord = true;
+
+            if (item.fileUri != null && !item.fileUri.isEmpty()) {
+                Uri uri = Uri.parse(item.fileUri);
+                if (FolderManager.exists(this, uri)) {
+                    canRemoveRecord = FolderManager.delete(this, uri);
+                }
+            }
+
+            if (canRemoveRecord) {
+                store.deleteRow(item.id);
+            }
+
+            boolean removed = canRemoveRecord;
+            runOnUiThread(() -> {
+                Toast.makeText(
+                        this,
+                        removed
+                                ? "Item removido"
+                                : "Não foi possível apagar o arquivo associado",
+                        removed ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG
+                ).show();
+                refresh();
+            });
+        });
     }
 
     private void sendForAnalysis(AppStore.Item item) {
