@@ -2,7 +2,6 @@ package com.babycatbe.salvarnaia;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.app.Dialog;
 import android.content.BroadcastReceiver;
@@ -874,18 +873,18 @@ public class MainActivity extends Activity {
     }
 
     private void confirmRemoveMissing(AppStore.Item item) {
-        new AlertDialog.Builder(this)
-                .setTitle("Remover este registro?")
-                .setMessage(
-                        "O MP4 já não foi encontrado. " +
-                                "Isso remove apenas o registro da lista."
-                )
-                .setNegativeButton("Cancelar", null)
-                .setPositiveButton("Remover", (dialog, which) -> {
+        showConfirmationDialog(
+                "🗑",
+                "Remover este registro?",
+                "O MP4 já não foi encontrado. " +
+                        "Isso remove apenas o registro da lista.",
+                "Cancelar",
+                "Remover",
+                () -> {
                     store.deleteRow(item.id);
                     refresh();
-                })
-                .show();
+                }
+        );
     }
 
     private void chooseFolder() {
@@ -959,16 +958,16 @@ public class MainActivity extends Activity {
     }
 
     private void confirmCancelPending(AppStore.Item item) {
-        new AlertDialog.Builder(this)
-                .setTitle("Cancelar no Salvar na IA?")
-                .setMessage(
-                        "Este item será removido somente do Salvar na IA. " +
+        showConfirmationDialog(
+                "×",
+                "Cancelar no Salvar na IA?",
+                "Este item será removido somente do Salvar na IA. " +
                         "O aplicativo deixará de acompanhar esse processo. " +
-                        "O YTDLnis e qualquer MP4 já baixado não serão alterados."
-                )
-                .setNegativeButton("Voltar", null)
-                .setPositiveButton("Cancelar item", (dialog, which) -> removeTransientItem(item))
-                .show();
+                        "O YTDLnis e qualquer MP4 já baixado não serão alterados.",
+                "Voltar",
+                "Cancelar item",
+                () -> removeTransientItem(item)
+        );
     }
 
     private void removeTransientItem(AppStore.Item item) {
@@ -1139,6 +1138,26 @@ public class MainActivity extends Activity {
         List<AppStore.Item> trash = store.getTrash();
         if (trash.isEmpty()) return;
 
+        showConfirmationDialog(
+                "🗑",
+                "Esvaziar lixeira",
+                "Isso excluirá permanentemente " + trash.size() +
+                        " vídeo(s), apagará os registros e liberará os códigos.\n" +
+                        "Essa ação não pode ser desfeita.",
+                "Cancelar",
+                "Excluir tudo",
+                this::emptyTrashPermanently
+        );
+    }
+
+    private void showConfirmationDialog(
+            String iconText,
+            String titleText,
+            String messageText,
+            String cancelText,
+            String confirmText,
+            Runnable onConfirm
+    ) {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setCanceledOnTouchOutside(true);
@@ -1149,7 +1168,7 @@ public class MainActivity extends Activity {
         panel.setGravity(Gravity.CENTER_HORIZONTAL);
         panel.setBackground(rounded(SURFACE, BORDER, 28));
 
-        TextView icon = text("🗑", 28, true);
+        TextView icon = text(iconText, 28, true);
         icon.setGravity(Gravity.CENTER);
         icon.setTextColor(RED);
         icon.setBackground(rounded(RED_SOFT, RED_SOFT, 99));
@@ -1158,20 +1177,14 @@ public class MainActivity extends Activity {
                 new LinearLayout.LayoutParams(dp(68), dp(68))
         );
 
-        TextView title = text("Esvaziar lixeira", 24, true);
+        TextView title = text(titleText, 24, true);
         title.setTextColor(TEXT);
         title.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams titleP = matchWrap();
         titleP.topMargin = dp(16);
         panel.addView(title, titleP);
 
-        TextView message = text(
-                "Isso excluirá permanentemente " + trash.size() +
-                        " vídeo(s), apagará os registros e liberará os códigos.\n" +
-                        "Essa ação não pode ser desfeita.",
-                15,
-                false
-        );
+        TextView message = text(messageText, 15, false);
         message.setTextColor(MUTED);
         message.setGravity(Gravity.CENTER);
         message.setLineSpacing(dp(3), 1f);
@@ -1186,7 +1199,7 @@ public class MainActivity extends Activity {
         actionsP.topMargin = dp(22);
         panel.addView(actions, actionsP);
 
-        TextView cancel = actionButton("Cancelar", false);
+        TextView cancel = actionButton(cancelText, false);
         cancel.setTextColor(RED);
         cancel.setBackground(rounded(Color.WHITE, RED, 18));
         LinearLayout.LayoutParams cancelP = new LinearLayout.LayoutParams(
@@ -1197,19 +1210,19 @@ public class MainActivity extends Activity {
         cancelP.rightMargin = dp(6);
         actions.addView(cancel, cancelP);
 
-        TextView deleteAll = actionButton("Excluir tudo", true);
-        LinearLayout.LayoutParams deleteP = new LinearLayout.LayoutParams(
+        TextView confirm = actionButton(confirmText, true);
+        LinearLayout.LayoutParams confirmP = new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f
         );
-        deleteP.leftMargin = dp(6);
-        actions.addView(deleteAll, deleteP);
+        confirmP.leftMargin = dp(6);
+        actions.addView(confirm, confirmP);
 
         cancel.setOnClickListener(v -> dialog.dismiss());
-        deleteAll.setOnClickListener(v -> {
+        confirm.setOnClickListener(v -> {
             dialog.dismiss();
-            emptyTrashPermanently();
+            onConfirm.run();
         });
 
         dialog.setContentView(panel);
