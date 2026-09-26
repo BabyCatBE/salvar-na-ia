@@ -419,13 +419,14 @@ public class MainActivity extends Activity {
 
         if (showingTrash) {
             TextView emptyTrash = actionButton(
-                    "Esvaziar lixeira (" + items.size() + ")",
+                    "🗑  Esvaziar lixeira (" + items.size() + ")",
                     false
             );
             emptyTrash.setTextColor(RED);
+            emptyTrash.setBackground(rounded(RED_SOFT, RED, 18));
             emptyTrash.setOnClickListener(v -> confirmEmptyTrash());
             LinearLayout.LayoutParams emptyTrashP = matchWrap();
-            emptyTrashP.bottomMargin = dp(12);
+            emptyTrashP.bottomMargin = dp(14);
             listContainer.addView(emptyTrash, emptyTrashP);
         }
 
@@ -590,7 +591,7 @@ public class MainActivity extends Activity {
     private View trashCard(AppStore.Item item) {
         LinearLayout card = card();
 
-        TextView code = chip(item.code, Color.rgb(239, 238, 237), MUTED);
+        TextView code = chip(item.code, RED_SOFT, RED);
         card.addView(code);
 
         TextView title = text(
@@ -600,26 +601,37 @@ public class MainActivity extends Activity {
         );
         title.setTextColor(TEXT);
         LinearLayout.LayoutParams titleP = matchWrap();
-        titleP.topMargin = dp(10);
+        titleP.topMargin = dp(12);
         card.addView(title, titleP);
 
-        long remaining = Math.max(0, (item.trashAt + TRASH_RETENTION_MS) - System.currentTimeMillis());
-        long days = (remaining + (24L * 60L * 60L * 1000L) - 1) / (24L * 60L * 60L * 1000L);
+        long remaining = Math.max(
+                0,
+                (item.trashAt + TRASH_RETENTION_MS) - System.currentTimeMillis()
+        );
+        long days = (
+                remaining + (24L * 60L * 60L * 1000L) - 1
+        ) / (24L * 60L * 60L * 1000L);
 
-        TextView info = text("Exclusão automática em até " + days + " dia(s)", 13, false);
+        TextView info = text(
+                "Exclusão automática em até " + days + " dia(s)",
+                13,
+                false
+        );
         info.setTextColor(MUTED);
         LinearLayout.LayoutParams infoP = matchWrap();
         infoP.topMargin = dp(6);
+        infoP.bottomMargin = dp(2);
         card.addView(info, infoP);
 
-        TextView restore = actionButton("Restaurar", false);
+        TextView restore = actionButton("↻  Restaurar", false);
         restore.setOnClickListener(v -> restore(item));
         LinearLayout.LayoutParams restoreP = matchWrap();
         restoreP.topMargin = dp(14);
         card.addView(restore, restoreP);
 
-        TextView delete = actionButton("Excluir agora", false);
+        TextView delete = actionButton("🗑  Excluir agora", false);
         delete.setTextColor(RED);
+        delete.setBackground(rounded(RED_SOFT, RED, 18));
         delete.setOnClickListener(v -> deleteNow(item));
         LinearLayout.LayoutParams deleteP = matchWrap();
         deleteP.topMargin = dp(8);
@@ -1127,16 +1139,100 @@ public class MainActivity extends Activity {
         List<AppStore.Item> trash = store.getTrash();
         if (trash.isEmpty()) return;
 
-        new AlertDialog.Builder(this)
-                .setTitle("Esvaziar lixeira?")
-                .setMessage(
-                        "Isso excluirá permanentemente " + trash.size() +
-                                " vídeo(s), apagará os registros e liberará os códigos. " +
-                                "Essa ação não pode ser desfeita."
-                )
-                .setNegativeButton("Cancelar", null)
-                .setPositiveButton("Excluir tudo", (dialog, which) -> emptyTrashPermanently())
-                .show();
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setCanceledOnTouchOutside(true);
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(22), dp(22), dp(22), dp(20));
+        panel.setGravity(Gravity.CENTER_HORIZONTAL);
+        panel.setBackground(rounded(SURFACE, BORDER, 28));
+
+        TextView icon = text("🗑", 28, true);
+        icon.setGravity(Gravity.CENTER);
+        icon.setTextColor(RED);
+        icon.setBackground(rounded(RED_SOFT, RED_SOFT, 99));
+        panel.addView(
+                icon,
+                new LinearLayout.LayoutParams(dp(68), dp(68))
+        );
+
+        TextView title = text("Esvaziar lixeira", 24, true);
+        title.setTextColor(TEXT);
+        title.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams titleP = matchWrap();
+        titleP.topMargin = dp(16);
+        panel.addView(title, titleP);
+
+        TextView message = text(
+                "Isso excluirá permanentemente " + trash.size() +
+                        " vídeo(s), apagará os registros e liberará os códigos.\n" +
+                        "Essa ação não pode ser desfeita.",
+                15,
+                false
+        );
+        message.setTextColor(MUTED);
+        message.setGravity(Gravity.CENTER);
+        message.setLineSpacing(dp(3), 1f);
+        LinearLayout.LayoutParams messageP = matchWrap();
+        messageP.topMargin = dp(12);
+        panel.addView(message, messageP);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams actionsP = matchWrap();
+        actionsP.topMargin = dp(22);
+        panel.addView(actions, actionsP);
+
+        TextView cancel = actionButton("Cancelar", false);
+        cancel.setTextColor(RED);
+        cancel.setBackground(rounded(Color.WHITE, RED, 18));
+        LinearLayout.LayoutParams cancelP = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        );
+        cancelP.rightMargin = dp(6);
+        actions.addView(cancel, cancelP);
+
+        TextView deleteAll = actionButton("Excluir tudo", true);
+        LinearLayout.LayoutParams deleteP = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        );
+        deleteP.leftMargin = dp(6);
+        actions.addView(deleteAll, deleteP);
+
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        deleteAll.setOnClickListener(v -> {
+            dialog.dismiss();
+            emptyTrashPermanently();
+        });
+
+        dialog.setContentView(panel);
+
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setDimAmount(0.48f);
+            window.addFlags(
+                    android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND
+            );
+        }
+
+        dialog.show();
+
+        window = dialog.getWindow();
+        if (window != null) {
+            int screenWidth = getResources().getDisplayMetrics().widthPixels;
+            window.setLayout(
+                    Math.min(screenWidth - dp(32), dp(520)),
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+        }
     }
 
     private void emptyTrashPermanently() {
