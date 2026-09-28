@@ -2,6 +2,20 @@
 
 Aplicativo Android local para receber vídeos compartilhados, usar o YTDLnis como downloader, fazer uma pré-análise local com IA e organizar o envio do MP4 para qualquer IA/app compatível.
 
+
+## Contexto obrigatório para agentes
+
+Antes de realizar alterações técnicas relevantes neste projeto, leia os arquivos aplicáveis em `docs/contexto/`.
+
+- `prd.md` define o produto e o escopo atual.
+- `architecture.md` descreve a arquitetura realmente implementada.
+- `rules.md` contém restrições obrigatórias de desenvolvimento, dados e segurança.
+- `design.md` documenta o padrão visual vigente.
+- `task.md` representa a fase, prioridades e trabalho atual.
+- `memory.md` registra decisões e aprendizados que precisam sobreviver entre sessões.
+
+Esses arquivos complementam o Contexto Mestre: não substitua o estado real do código por documentação antiga e não trate uma alteração como completamente documentada quando o arquivo de contexto correspondente ficar desatualizado.
+
 ## Estado atual
 
 **Código atual:** v0.4.8  
