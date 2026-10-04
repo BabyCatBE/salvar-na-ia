@@ -19,8 +19,8 @@ Esses arquivos complementam o Contexto Mestre: não substitua o estado real do c
 ## Estado atual
 
 **Código atual:** v0.4.8  
-**Versão instalada no aparelho:** v0.4.7  
-**v0.4.8:** COMPILADA / PUBLICADA / A TESTAR  
+**Versão instalada no aparelho:** v0.4.8  
+**v0.4.8:** INSTALADA / diálogo “Cancelar no Salvar na IA?” TESTADO visualmente; “Remover este registro?” A TESTAR  
 **Atualizador interno:** TESTADO / APROVADO  
 **Configurações arredondadas:** TESTADAS / APROVADAS  
 **Retry de Arquivo ausente na v0.4.6:** TESTADO / APROVADO  
@@ -207,4 +207,4 @@ A v0.4.8 remove o uso restante de `AlertDialog` e cria um componente único de c
 
 A lógica das ações foi preservada; a mudança é de apresentação e reutilização do componente.
 
-Estado: **IMPLEMENTADA / COMPILADA / PUBLICADA / A TESTAR NO APARELHO**.
+Estado: **INSTALADA**. O diálogo **Cancelar no Salvar na IA?** foi TESTADO/APROVADO visualmente no aparelho. **Remover este registro?** permanece A TESTAR quando surgir naturalmente; **Esvaziar lixeira** já tinha o visual aprovado e agora reutiliza o mesmo componente.
