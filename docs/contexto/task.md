@@ -56,7 +56,7 @@ Missão planejada e ainda não executada:
 - Não alterar o aplicativo nesta missão.
 - Não usar serviço externo/pago para processar o backlog sem nova decisão.
 
-Foi entregue ao usuário um prompt Markdown específico para executar essa missão no Codex.
+Prompt operacional versionado: [`docs/operacoes/backlog-adb-codex.md`](../operacoes/backlog-adb-codex.md).
 
 ## Pendências de teste conhecidas
 
