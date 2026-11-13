@@ -1,42 +1,75 @@
 # Tarefa atual — Salvar na IA
 
-> Atualizado em 2026-09-28.
+> Atualizado em 2026-11-13.
 
 ## Fase atual
 
-**v0.4.8 — validação no aparelho real**
+**v0.4.8 instalada — uso normal + diagnóstico de TikTok + operação pontual de backlog**
 
-Código: v0.4.8.  
-Instalada no aparelho: v0.4.7.  
-v0.4.8: **IMPLEMENTADA / COMPILADA / PUBLICADA / A TESTAR**.
+Código/versão instalada: v0.4.8.
 
-A implantação dos seis arquivos de contexto em `docs/contexto/` faz parte da documentação técnica permanente e foi concluída nesta etapa.
+Estado de validação relevante:
+- **Cancelar no Salvar na IA?** — TESTADO / APROVADO visualmente no aparelho.
+- **Remover este registro?** — A TESTAR quando surgir naturalmente.
+- Configurações, prompt editável, atualizador interno, base funcional e lixeira privada individual continuam conforme validações anteriores.
 
 ## Objetivo imediato
 
-Instalar a v0.4.8 pelo atualizador interno já validado e confirmar visualmente que todas as confirmações próprias do app seguem o mesmo padrão arredondado.
+Há duas frentes operacionais, sem mudança no aplicativo neste momento:
 
-## Próxima sequência de teste
+1. Diagnosticar falhas frequentes de download de vídeos do TikTok no YTDLnis/yt-dlp.
+2. Zerar com segurança um backlog grande de vídeos pendentes usando Codex no PC + ADB, sem apagar nem alterar dados do celular durante a missão.
 
-1. Atualizar v0.4.7 → v0.4.8 pelo atualizador interno.
-2. Abrir **Cancelar no Salvar na IA?** e validar apenas o visual; sair por Voltar/cancelamento, sem ação destrutiva.
-3. Abrir **Esvaziar lixeira** e validar o visual; cancelar sem excluir.
-4. Validar **Remover este registro?** quando um item em Arquivo ausente aparecer naturalmente.
-5. Se todos estiverem coerentes, registrar a v0.4.8 como TESTADA/APROVADA visualmente.
+## TikTok — diagnóstico atual
 
-## Pendências de teste já conhecidas
+O perfil do Salvar na IA permanece com:
+- comando: `-t mp4 --no-playlist`;
+- qualidade: automática.
 
+O usuário já instalou o canal **Nightly** do yt-dlp no YTDLnis.
+
+Há relatos recentes no upstream do yt-dlp de falhas do TikTok por resposta inesperada/impersonação. Portanto, nesta fase:
+- não alterar o comando do Salvar na IA por hipótese;
+- reproduzir um link problemático diretamente no YTDLnis;
+- capturar o erro/log exato;
+- somente se o erro corresponder ao problema conhecido, avaliar um teste incremental de `--user-agent`.
+
+## Operação de backlog via Codex + ADB
+
+Missão planejada e ainda não executada:
+
+1. conectar o celular via ADB;
+2. localizar a pasta pública `Download_Videos IA`;
+3. inventariar os MP4s;
+4. copiar para o PC com `adb pull`;
+5. validar quantidade/tamanhos;
+6. analisar cada vídeo separadamente;
+7. gerar análises individuais, índice geral, falhas e possíveis duplicados;
+8. revisar o resultado antes de qualquer limpeza.
+
+### Restrições obrigatórias
+
+- ADB no celular somente para leitura/listagem e cópia.
+- Não apagar, mover ou renomear arquivos do celular.
+- Não alterar SQLite, SharedPreferences, lixeira privada nem arquivos internos do app.
+- Não marcar itens como enviados.
+- Não alterar o aplicativo nesta missão.
+- Não usar serviço externo/pago para processar o backlog sem nova decisão.
+
+Foi entregue ao usuário um prompt Markdown específico para executar essa missão no Codex.
+
+## Pendências de teste conhecidas
+
+- validar **Remover este registro?** quando surgir naturalmente;
 - controles rápidos de copiar link/× cancelar;
 - reciclagem do menor código livre;
 - execução destrutiva completa de **Esvaziar lixeira**;
 - qualidade semântica da IA local em vídeos mais complexos;
 - impacto de CPU/RAM/temperatura e desempenho da IA local.
 
-Esses itens podem ser validados no uso normal quando não houver necessidade de teste destrutivo artificial.
+## Próxima frente estrutural do produto
 
-## Próxima frente estrutural
-
-Depois da validação da v0.4.8, continuar a investigação/implementação da:
+Depois das frentes operacionais acima, permanecem:
 - fila sequencial verdadeira;
 - associação download↔registro mais robusta.
 
@@ -44,24 +77,12 @@ Antes de alterar essa arquitetura, verificar se o YTDLnis oferece evento, ID, br
 
 ## Limitações/bloqueios atuais
 
-- Associação de download ainda heurística.
-- Compartilhamentos rápidos podem gerar downloads simultâneos.
-- Retry automático completo não existe.
-- Não há WorkManager para limpeza exata aos 7 dias.
-- Não há evidência suficiente para declarar a IA local plenamente validada em qualidade/recursos.
-
-Nenhum desses pontos deve ser marcado como concluído apenas por intenção ou build.
-
-## Concluído recentemente e ainda relevante
-
-- v0.4.8: componente único para confirmações — COMPILADO/PUBLICADO, teste pendente.
-- v0.4.7: redesign visual da Lixeira — TESTADO/APROVADO.
-- Configurações arredondadas — TESTADAS/APROVADAS.
-- Prompt editável/restaurável — TESTADO/APROVADO.
-- Atualizador interno — TESTADO/APROVADO.
-- Retry de Arquivo ausente reaproveitando MP4 já existente — TESTADO/APROVADO.
-- Fluxo completo base da v0.3.3 — TESTADO/APROVADO.
-- Lixeira privada com restauração/exclusão física individual — TESTADA/APROVADA.
+- associação de download ainda heurística;
+- compartilhamentos rápidos podem gerar downloads simultâneos;
+- retry automático completo não existe;
+- não há WorkManager para limpeza exata aos 7 dias;
+- não há evidência suficiente para declarar a IA local plenamente validada em qualidade/recursos;
+- falha frequente do TikTok ainda está em diagnóstico e não foi atribuída definitivamente ao app.
 
 ## Regra deste arquivo
 

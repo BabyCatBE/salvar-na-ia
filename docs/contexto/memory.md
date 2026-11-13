@@ -2,6 +2,28 @@
 
 Este arquivo guarda decisões e aprendizados que ainda afetam o projeto. Não é um changelog completo.
 
+## 2026-11-13 — Falhas do TikTok devem ser diagnosticadas antes de mudar o perfil
+
+**Constatação:** o usuário passou a observar falhas frequentes em downloads do TikTok. O yt-dlp já foi atualizado para o canal Nightly no YTDLnis, e há relatos recentes no upstream de falhas do TikTok por resposta inesperada/impersonação.
+
+**Decisão operacional:** preservar por enquanto o comando aprovado `-t mp4 --no-playlist` e a qualidade automática. Primeiro reproduzir um link problemático diretamente no YTDLnis e capturar o erro/log exato.
+
+**Próximo teste possível:** se o erro corresponder ao problema conhecido de resposta/impersonação, avaliar um teste isolado de `--user-agent`. Não mudar várias variáveis ao mesmo tempo.
+
+---
+
+## 2026-11-13 — Backlog pode ser processado externamente sem alterar o app
+
+**Situação:** muitos vídeos pendentes se acumularam no aparelho.
+
+**Decisão operacional:** usar Codex no PC com ADB para uma missão pontual de cópia e análise em lote, sem transformar isso em função do aplicativo nesta etapa.
+
+**Regras:** ADB no celular somente para leitura/listagem e `adb pull`; não apagar, mover, renomear, alterar SQLite/SharedPreferences/lixeira privada nem marcar itens como enviados. A revisão vem antes de qualquer limpeza.
+
+**Impacto:** o backlog pode ser reduzido sem introduzir infraestrutura nova nem alterar a arquitetura aprovada do produto.
+
+---
+
 ## 2026-09-28 — Seis arquivos de contexto passam a fazer parte do projeto
 
 **Decisão:** criar `docs/contexto/` com `prd.md`, `architecture.md`, `rules.md`, `design.md`, `task.md` e `memory.md`.
