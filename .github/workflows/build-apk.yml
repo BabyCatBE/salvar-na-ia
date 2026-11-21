@@ -70,6 +70,7 @@ jobs:
           name: Salvar-na-IA-v${{ steps.app_version.outputs.version }}-signed
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
+          retention-days: 14
 
       - name: Publish GitHub Release
         env:
